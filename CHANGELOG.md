@@ -1,9 +1,13 @@
 # Changelog
 
-Todas as alterações relevantes a este add-on ficam registadas aqui.
-O formato segue [Keep a Changelog](https://keepachangelog.com/pt-PT/1.1.0/).
+All notable changes to this add-on are recorded here.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Não lançado]
+## [Unreleased]
 
-### Adicionado
-- README e CHANGELOG. (2026-10-29)
+### Added
+- README and CHANGELOG. (2026-10-29)
+
+### Changed
+- Translated documentation to English (2026-10-29).
+- Multi-language requirement: the add-on web page must keep all user-facing strings in i18n files, with no hardcoded text (2026-10-29).
