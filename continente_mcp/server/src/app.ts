@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { TokenStore, type TokenRecord } from './auth.js';
 import type { Config } from './config.js';
+import { ListService, ValidationError, type ItemInput } from './lists.js';
+import { parseList } from './parser.js';
 
 declare module 'fastify' {
   interface FastifyRequest { principal?: TokenRecord }
@@ -57,6 +59,68 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.delete<{ Params: { id: string } }>('/api/v1/admin/tokens/:id', async (req, reply) =>
     tokens.revoke(Number(req.params.id)) ? reply.code(204).send() : reply.code(404).send(apiError('not_found', 'error.token_not_found')));
+
+  const lists = new ListService(deps.db);
+  app.setErrorHandler((error, _req, reply) => {
+    if (error instanceof ValidationError) return reply.code(400).send(apiError('invalid_request', error.key));
+    const status = (error as { statusCode?: number }).statusCode ?? 500;
+    if (status < 500) return reply.code(status).send(apiError('invalid_request', 'error.invalid_request'));
+    app.log.error(error);
+    return reply.code(500).send(apiError('internal', 'error.internal'));
+  });
+
+  const snapshot = () => {
+    const list = lists.current();
+    return { list, version: lists.currentVersion(), items: lists.items(list.id) };
+  };
+
+  app.get('/api/v1/lists/current', async () => snapshot());
+
+  app.get<{ Querystring: { since?: string } }>('/api/v1/lists/current/changes', async (req, reply) => {
+    const since = Number(req.query.since);
+    if (!Number.isInteger(since) || since < 0) return reply.code(400).send(apiError('invalid_request', 'error.invalid_since'));
+    const list = lists.current();
+    return { list, version: lists.currentVersion(), items: lists.items(list.id, since) };
+  });
+
+  app.post<{ Body: ItemInput }>('/api/v1/lists/current/items', async (req, reply) => {
+    const { item, created } = lists.add(req.body ?? {}, req.principal!.name);
+    return reply.code(created ? 201 : 200).send(item);
+  });
+
+  app.patch<{ Params: { id: string }; Body: ItemInput }>('/api/v1/items/:id', async (req, reply) => {
+    const res = lists.update(Number(req.params.id), req.body ?? {});
+    if (!res) return reply.code(404).send(apiError('not_found', 'error.item_not_found'));
+    return { ...res.item, applied: res.applied };
+  });
+
+  app.delete<{ Params: { id: string }; Querystring: { updated_at?: string } }>('/api/v1/items/:id', async (req, reply) => {
+    const res = lists.remove(Number(req.params.id), req.query.updated_at);
+    if (!res) return reply.code(404).send(apiError('not_found', 'error.item_not_found'));
+    return res.applied ? reply.code(204).send() : reply.code(409).send(apiError('stale_write', 'error.stale_write'));
+  });
+
+  app.post<{ Body: { text?: unknown } }>('/api/v1/lists/current/parse', async (req, reply) => {
+    const text = req.body?.text;
+    if (typeof text !== 'string' || text.length > 20000) return reply.code(400).send(apiError('invalid_request', 'error.invalid_text'));
+    return { items: parseList(text) };
+  });
+
+  app.post<{ Body: { scope?: unknown } }>('/api/v1/lists/current/clear', async (req, reply) => {
+    const scope = req.body?.scope;
+    if (scope !== 'in_cart' && scope !== 'all') return reply.code(400).send(apiError('invalid_request', 'error.invalid_scope'));
+    return { cleared: lists.clear(scope), version: lists.currentVersion() };
+  });
+
+  app.post('/api/v1/lists', async (_req, reply) => { lists.startNew(); return reply.code(201).send(snapshot()); });
+
+  app.get('/api/v1/lists/history', async () => ({ lists: lists.history() }));
+
+  app.post<{ Params: { id: string } }>('/api/v1/lists/history/:id/repeat', async (req, reply) => {
+    const items = lists.repeat(Number(req.params.id), req.principal!.name);
+    if (!items) return reply.code(404).send(apiError('not_found', 'error.list_not_found'));
+    return { items, version: lists.currentVersion() };
+  });
 
   return app;
 }

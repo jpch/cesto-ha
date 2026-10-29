@@ -35,6 +35,55 @@ components:
         created_at: { type: string }
         last_used_at: { type: [string, "null"] }
         revoked_at: { type: [string, "null"] }
+    Item:
+      type: object
+      properties:
+        id: { type: integer }
+        list_id: { type: integer }
+        client_id: { type: [string, "null"] }
+        name: { type: string }
+        quantity: { type: [number, "null"] }
+        unit: { type: [string, "null"], enum: [un, kg, g, l, ml, null] }
+        note: { type: [string, "null"] }
+        category: { type: [string, "null"] }
+        added_by: { type: string, description: Name of the token that added the item }
+        state: { type: string, enum: [pending, in_cart, not_bought] }
+        deleted: { type: boolean }
+        version: { type: integer }
+        created_at: { type: string }
+        updated_at: { type: string }
+    ItemInput:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        quantity: { type: [number, "null"], exclusiveMinimum: 0 }
+        unit: { type: [string, "null"], enum: [un, kg, g, l, ml, null] }
+        note: { type: [string, "null"] }
+        category: { type: [string, "null"] }
+        state: { type: string, enum: [pending, in_cart, not_bought] }
+        client_id: { type: string, description: Client-generated id; repeated creates with the same id are idempotent }
+        updated_at: { type: string, format: date-time, description: "Client edit time for last-write-wins; older than the stored value = ignored; future times are clamped to server time" }
+    List:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        status: { type: string, enum: [active, archived] }
+        created_at: { type: string }
+        updated_at: { type: string }
+    Snapshot:
+      type: object
+      properties:
+        list: { $ref: "#/components/schemas/List" }
+        version: { type: integer, description: Global change sequence; pass as `since` for delta sync }
+        items: { type: array, items: { $ref: "#/components/schemas/Item" } }
+    ParsedItem:
+      type: object
+      properties:
+        name: { type: string }
+        quantity: { type: [number, "null"] }
+        unit: { type: [string, "null"] }
+        raw: { type: string }
 paths:
   /health:
     get:
@@ -69,3 +118,52 @@ paths:
       security: []
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       responses: { "204": { description: Revoked }, "404": { description: Not found }, "403": { description: Not from ingress } }
+  /lists/current:
+    get:
+      summary: Current household list with all non-deleted items
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Snapshot" } } } } }
+  /lists/current/changes:
+    get:
+      summary: Delta sync; items (including deleted) changed after `since`. If `list.id` differs from the cached one, reload fully.
+      parameters: [{ name: since, in: query, required: true, schema: { type: integer, minimum: 0 } }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Snapshot" } } } }, "400": { description: Invalid since } }
+  /lists/current/items:
+    post:
+      summary: Add an item (added_by = token name)
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/ItemInput" } } } }
+      responses: { "201": { description: Created }, "200": { description: Already created with this client_id }, "400": { description: Invalid } }
+  /items/{id}:
+    patch:
+      summary: Edit an item (last write wins); response has `applied` false when the edit was older than the stored one
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/ItemInput" } } } }
+      responses: { "200": { description: Item after the edit attempt }, "404": { description: Not found } }
+    delete:
+      summary: Delete an item (soft delete, propagates through delta sync)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: updated_at, in: query, required: false, schema: { type: string, format: date-time } }
+      responses: { "204": { description: Deleted }, "404": { description: Not found }, "409": { description: Stale delete (item edited later) } }
+  /lists/current/parse:
+    post:
+      summary: Parse free text (pt-PT) into proposed items; nothing is saved
+      requestBody: { content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, maxLength: 20000 } } } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/ParsedItem" } } } } } } } }
+  /lists/current/clear:
+    post:
+      summary: Clear items in the cart or all items of the current list
+      requestBody: { content: { application/json: { schema: { type: object, required: [scope], properties: { scope: { type: string, enum: [in_cart, all] } } } } } }
+      responses: { "200": { description: OK }, "400": { description: Invalid scope } }
+  /lists:
+    post:
+      summary: Archive the current list into history and start a new one
+      responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Snapshot" } } } } }
+  /lists/history:
+    get:
+      summary: Archived lists, newest first
+      responses: { "200": { description: OK } }
+  /lists/history/{id}/repeat:
+    post:
+      summary: Copy an archived list's items into the current list as pending (the cart is only reached through the preview)
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: OK }, "404": { description: Not found } }
