@@ -23,7 +23,7 @@ Findings:
 - `https://cdn.playwright.dev/builds/cft/156.0.8078.4/linux-arm64/chrome-headless-shell-linux-arm64.zip` downloads (125.7 MB); the binary is glibc aarch64 (`NEEDED ld-linux-aarch64.so.1`, `libc.so.6`, nss, glib, X11 libs, gbm, asound).
 - Home Assistant publishes `ghcr.io/home-assistant/aarch64-base-debian:bookworm` and `:trixie`.
 
-Verdict: **feasible, with a Debian base image (not the default Alpine base)**. Not yet verified: an actual run on aarch64 (the planning box has no Docker/QEMU), so task T1 is a gate: build the image for `linux/arm64` in CI (QEMU) and run a headless smoke test (`search_products`), then confirm RAM/CPU on the Pi.
+Verdict: **feasible, with a Debian base image (not the default Alpine base)**. Confirmed by T1 (PR #2, CI run 40968010279, native `ubuntu-24.04-arm` runner): headless `search_products` returned products on aarch64 in 4.5 s; image 945.5 MB (arm64) / 928.9 MB (amd64); container `memory.peak` 699.5 MB (arm64) / 686.6 MB (amd64) for one search.
 
 Consequences:
 - Base image `ghcr.io/home-assistant/{arch}-base-debian:trixie`, Node 22 from NodeSource, `npx playwright install --with-deps chromium` at **build time** (no runtime download; `PLAYWRIGHT_BROWSERS_PATH=/opt/pw`).
@@ -43,7 +43,7 @@ HA web page (ingress) ─────►   ├─ list service (SQLite, better-s
                                ├─ basket service (preview/apply, job queue, test-mode guard)
                                ├─ MCP client (@modelcontextprotocol/sdk, stdio child process)
                                │      └─ continentept-mcp ─► Playwright Chromium ─► continente.pt
-                               ├─ vision service (pluggable provider: OpenAI / Gemini / none)
+                               ├─ vision service (pluggable provider, default none)
                                ├─ login service (Xvfb + noVNC, on demand)
                                └─ HA integration (Supervisor API: sensors, notifications)
 ```
@@ -52,7 +52,7 @@ Modules (`server/src/`):
 
 | Module | Responsibility |
 | --- | --- |
-| `config` | Add-on options (`/data/options.json`): `test_mode`, `vision_provider`, `vision_api_key`, `log_level`, language |
+| `config` | Add-on options (`/data/options.json`): `test_mode`, `vision_provider` (default `none`), `vision_api_key`, `log_level`, language |
 | `db` | SQLite schema + migrations; tables `lists`, `items`, `tokens`, `preferences`, `history_runs`, `history_items`, `product_cache` |
 | `auth` | Per-phone/per-app bearer tokens (hashed, revocable), ingress trust for the web page |
 | `lists` | CRUD, last-write-wins via `updated_at` + client `base_version`, "in cart" state, new list/clear |
@@ -62,7 +62,7 @@ Modules (`server/src/`):
 | `matcher` | Item → ranked candidates: learned preference > frequent > favourite > search; 2–4 options when generic; promo and out-of-stock alternatives (≤3) |
 | `basket` | Build proposal → `preview_cart_changes` → confirm → `add_cart_item`/`set_cart_item_quantity` (and `clear_cart` if "empty first") → `get_cart` verify; `unknown` outcome stops and re-reads |
 | `queue` | Single-worker job queue (one MCP job at a time); offline/expired-session queueing |
-| `vision` | Barcode lookup (EAN from phone) → OCR/vision provider → candidate products; photo deleted, thumbnail kept |
+| `vision` | Barcode lookup (EAN from phone) → packaging text (OCR on the phone with ML Kit text recognition, sent as text) → optional vision provider (default `none`) → candidate products; photo deleted, thumbnail kept |
 | `ha` | Sensors `sensor.continente_server_status`, `binary_sensor.continente_session_valid`, `sensor.continente_list_items`, `sensor.continente_last_sync`; persistent notification on expired session |
 | `web` | Ingress page: login/CAPTCHA, tokens, test mode indicator, JSON export, status; i18n `web/i18n/pt-PT.json`, `en.json` |
 | `discovery` | mDNS `_continente-basket._tcp` announce (decision 21) |
@@ -108,15 +108,24 @@ Screens: Setup (discover/IP + token), List, Add (text/dictation/photo), Parse re
 - Image: CI `docker buildx --platform linux/arm64,linux/amd64` + headless smoke test.
 - App: JUnit + Compose UI tests against MockWebServer; lint for hardcoded strings (`HardcodedText` as error).
 
-## 7. Risks
+## 7. Decisions recorded (João, 2026-10-29)
+
+1. A ~1 GB image and an always-on Chromium on the Pi 5 are accepted.
+2. CAPTCHA is solved through noVNC embedded in the add-on's HA ingress page.
+3. No vision AI provider in v1: the provider stays configurable with default `none`; photos are identified by barcode and packaging text only (on-device ML Kit barcode + text recognition).
+4. Plain HTTP with bearer tokens on the home network is accepted for v1.
+5. A new APK signing keystore is generated in T4 and stored as GitHub Actions secrets in `assistente-compras`.
+6. Distribution: João's public repo `jpch/continente-mcp-ha` as the add-on repository, with prebuilt multi-arch images on `ghcr.io/jpch/{arch}-continente-mcp` (`image:` in `config.yaml`), so the Pi only pulls and never builds.
+
+## 8. Risks
 
 | Risk | Mitigation |
 | --- | --- |
 | Unofficial MCP breaks when the site changes | Pin version, update via Renovate, fake-MCP tests, clear error surfaced in app |
-| Chromium on Pi 5: RAM/CPU, image size (~1 GB) | Single browser, queue, headless shell, T1 gate measures it |
+| Chromium on Pi 5: RAM/CPU, image size (~1 GB) | Accepted; single browser, queue, headless shell (measured ~700 MB peak in T1) |
 | CAPTCHA requires a visible browser | Xvfb + noVNC on the ingress page, on demand |
 | Session cookies in `/data` | 0600 files, included in HA backups (documented as sensitive) |
 | Accidental real cart change in test mode | `CartWriter` guard + unit test + test-mode banner in app/web |
 | `unknown` mutation outcome | Stop, `get_cart`, `needs_attention` job, no automatic retry |
-| Vision AI costs/privacy | Optional, provider configurable, photos deleted after identification |
+| Packaging-text matching weaker without vision AI | Show candidates when in doubt; provider can be enabled later without app changes |
 | Plain HTTP on LAN | Home network only, bearer tokens, revocable; HTTPS optional later |

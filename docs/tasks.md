@@ -5,6 +5,10 @@ Ordered; each task is one PR with tests, README/CHANGELOG updates and English co
 ## Wave 0: feasibility gate
 **T1 (S) Add-on skeleton + ARM smoke test.** `config.yaml` (arches aarch64/amd64, ingress, port 8099, options incl. `test_mode: true` default), Debian trixie base Dockerfile, Node 22, Playwright Chromium baked in, `continentept-mcp` pinned. CI builds `linux/arm64` + `amd64` via buildx/QEMU and runs a headless `search_products("leite")` smoke test.
 - AC: image builds for both arches; smoke test returns ≥1 product on arm64 in CI; image size and peak RSS recorded in the PR; installing on the Pi is done manually by João, not by the pipeline.
+- Status: done in PR #2 (both arches green; 945.5/928.9 MB; peak ~700 MB).
+
+**T1b (S) Prebuilt images on ghcr.io.** On tags/main, push `ghcr.io/jpch/{arch}-continente-mcp:<version>` for aarch64 and amd64; set `image:` in `config.yaml`; add `repository.yaml` so the repo installs from the HA add-on store.
+- AC: adding the repo URL in HA shows the add-on and installs by pulling, without a local build; images public.
 
 ## Wave 1: foundations
 **T2 (S) Server core.** Fastify + TypeScript, config loader, structured logs, `/api/v1/health`, SQLite migrations (all tables), token auth (hashed, revocable), `openapi.yaml`.
@@ -13,7 +17,7 @@ Ordered; each task is one PR with tests, README/CHANGELOG updates and English co
 **T3 (S) MCP client + fake MCP.** Spawn/supervise `continentept-mcp` over stdio, typed wrappers for all 15 tools, session-expired detection, single-worker queue, `CartWriter` test-mode guard. Fake MCP server for tests.
 - AC: test proves no mutating tool reaches the transport in test mode; crash → restart; queue serialises jobs.
 
-**T4 (A) App skeleton.** Compose + Hilt + Room + Retrofit generated from `openapi.yaml`, setup screen (NSD discovery, manual IP 192.168.200.250 fallback, token in Keystore), strings.xml pt-PT + en, lint `HardcodedText` as error, CI build + signed APK release workflow.
+**T4 (A) App skeleton.** Compose + Hilt + Room + Retrofit generated from `openapi.yaml`, setup screen (NSD discovery, manual IP 192.168.200.250 fallback, token in Keystore), strings.xml pt-PT + en, lint `HardcodedText` as error, CI build + signed APK release workflow; generate a new release keystore and store it as GitHub Actions secrets (keystore base64, store/key passwords, alias), never committed.
 - AC: APK installable via Obtainium from a release; `/health` shown; no hardcoded strings.
 
 ## Wave 2: list
@@ -40,10 +44,10 @@ Ordered; each task is one PR with tests, README/CHANGELOG updates and English co
 - AC: UI tests; checkout button only opens continente.pt.
 
 ## Wave 4: photo
-**T12 (S) Photo/vision service.** Barcode lookup via search, vision provider abstraction (OpenAI/Gemini/none) with key in options, candidates, photo deletion + thumbnail.
-- AC: provider mocked in tests; original photo never persisted.
+**T12 (S) Photo identification service.** Barcode lookup via search, packaging-text lookup (text sent by the app), vision provider interface with only `none` implemented (default), candidates, photo deletion + thumbnail.
+- AC: barcode and text paths tested with the fake MCP; with `none` no image leaves the server; original photo never persisted.
 
-**T13 (A) Camera + barcode.** CameraX + ML Kit barcode; fall back to photo upload; candidate chooser adds to list (never cart).
+**T13 (A) Camera + barcode + text.** CameraX + ML Kit barcode, then ML Kit on-device text recognition of the packaging; candidate chooser adds to list (never cart).
 - AC: barcode path works offline-first (queued).
 
 ## Wave 5: release
