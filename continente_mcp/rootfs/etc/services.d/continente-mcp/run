@@ -1,4 +1,4 @@
 #!/usr/bin/with-contenv bash
-# T1 placeholder service: the API server arrives in T2. Keeps the add-on alive and logs readiness.
-echo "[continente-mcp] skeleton ready (test_mode default: true)"
-exec sleep infinity
+# Starts the add-on HTTP API (port 8099). Options are read from /data/options.json.
+cd /opt/server || exit 1
+exec node dist/index.js
