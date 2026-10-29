@@ -30,7 +30,9 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - name: Read add-on version
         id: meta
-        run: echo "version=$(sed -n 's/^version: *\"\{0,1\}\([^\"]*\)\"\{0,1\}$/\1/p' continente_mcp/config.yaml)" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(grep -E '^version:' continente_mcp/config.yaml | sed -E 's/^version:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Build image (runs unit tests in the build)
         uses: docker/build-push-action@v6
         with:
