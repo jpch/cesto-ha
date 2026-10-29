@@ -1,0 +1,6 @@
+configuration:
+  test_mode:
+    name: Modo de teste
+    description: Faz tudo, incluindo a pré-visualização, mas nunca altera o carrinho real do Continente.
+  log_level:
+    name: Nível de registo
