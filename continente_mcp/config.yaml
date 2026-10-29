@@ -3,6 +3,7 @@ version: "0.1.0"
 slug: continente_mcp
 description: Shared shopping list and Continente.pt basket builder (unofficial MCP). Never checks out or pays.
 url: https://github.com/jpch/continente-mcp-ha
+image: ghcr.io/jpch/{arch}-continente-mcp
 arch:
   - aarch64
   - amd64
