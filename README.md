@@ -37,6 +37,12 @@ docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c co
 - Errors are `{"error": {"code", "message_key"}}`: clients translate the key, so the server never returns user-facing text.
 - Data lives in `/data/app.db` (SQLite, included in HA backups).
 
+### Continente MCP client and test mode
+
+- `continentept-mcp` runs as a supervised child process over stdio, started on the first call; if it crashes, the next call starts it again. Read calls are retried after a crash; cart mutations never are.
+- Cart changes go only through `CartWriter`. In test mode it returns a simulated result and never calls the MCP; a second guard on the transport refuses `add_cart_item`, `set_cart_item_quantity`, `remove_cart_item` and `clear_cart` while test mode is on. Tests run against a fake MCP (`server/test/fake-mcp.mjs`) and check that no mutating call reaches it.
+- One MCP job runs at a time (single-worker queue); a `not_authenticated` error marks the Continente session as invalid (`session_valid` in `/health`).
+
 Run the server tests locally:
 
 ```sh
