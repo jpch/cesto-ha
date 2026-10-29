@@ -1,0 +1,71 @@
+openapi: 3.1.0
+info:
+  title: Continente MCP add-on API
+  version: 0.1.0
+  description: HTTP API of the continente-mcp-ha add-on. Errors return a message key, never user-facing text.
+servers:
+  - url: http://homeassistant.local:8099/api/v1
+security:
+  - bearer: []
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message_key]
+          properties: { code: { type: string }, message_key: { type: string } }
+    Health:
+      type: object
+      required: [version, test_mode, session_valid, queue_length]
+      properties:
+        version: { type: string }
+        test_mode: { type: boolean }
+        session_valid: { type: [boolean, "null"] }
+        queue_length: { type: integer }
+    Token:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string, enum: [phone, app] }
+        created_at: { type: string }
+        last_used_at: { type: [string, "null"] }
+        revoked_at: { type: [string, "null"] }
+paths:
+  /health:
+    get:
+      security: []
+      summary: Server status (no auth)
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Health" } } } } }
+  /openapi.yaml:
+    get:
+      security: []
+      summary: This document
+      responses: { "200": { description: OK } }
+  /me:
+    get:
+      summary: The calling token
+      responses:
+        "200": { description: OK }
+        "401": { description: Missing or invalid token, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /admin/tokens:
+    get:
+      summary: List tokens (HA ingress only)
+      security: []
+      responses: { "200": { description: OK }, "403": { description: Not from ingress } }
+    post:
+      summary: Create a token (HA ingress only); the plain token is returned once
+      security: []
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [name, kind], properties: { name: { type: string }, kind: { type: string, enum: [phone, app] } } } } }
+      responses: { "201": { description: Created }, "400": { description: Invalid }, "403": { description: Not from ingress } }
+  /admin/tokens/{id}:
+    delete:
+      summary: Revoke a token (HA ingress only)
+      security: []
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "204": { description: Revoked }, "404": { description: Not found }, "403": { description: Not from ingress } }

@@ -1,6 +1,14 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base-debian:trixie
 FROM node:22-trixie-slim AS node
 
+# API server: install, type-check, test and build on the target architecture.
+FROM node:22-trixie-slim AS server
+WORKDIR /src
+COPY server/package.json server/package-lock.json ./
+RUN npm ci
+COPY server/ ./
+RUN npm run typecheck && npm test && npm run build && npm prune --omit=dev
+
 FROM ${BUILD_FROM}
 ARG CONTINENTEPT_MCP_VERSION=0.12.1
 
@@ -22,4 +30,7 @@ RUN npm install -g "continentept-mcp@${CONTINENTEPT_MCP_VERSION}" \
  && rm -rf /var/lib/apt/lists/* /root/.npm /tmp/*
 
 COPY rootfs /
+COPY --from=server /src/dist /opt/server/dist
+COPY --from=server /src/node_modules /opt/server/node_modules
+COPY --from=server /src/package.json /src/openapi.yaml /opt/server/
 RUN cd /opt/smoke && npm ci --omit=dev && rm -rf /root/.npm
