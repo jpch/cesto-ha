@@ -17,7 +17,7 @@ Home Assistant add-on that acts as the central server for the [assistente-compra
 
 - `continente_mcp/`: the add-on (Debian trixie base, Node.js 22, `continentept-mcp` pinned, Playwright Chromium headless shell baked into the image).
 - `continente_mcp/rootfs/opt/smoke/`: headless smoke test that calls the read-only `search_products` tool. It never touches the cart.
-- `ci/build.yaml`: GitHub Actions workflow (to be moved to `.github/workflows/` by a token with `workflow` scope); builds for `aarch64` and `amd64` and runs the smoke test.
+- `.github/workflows/build.yaml`: builds for `aarch64` and `amd64` and runs the smoke test.
 - `docs/`: architecture and task list.
 
 Supported architectures: `aarch64` (e.g. Raspberry Pi 5) and `amd64`. `armv7` is not supported because Playwright has no Chromium build for it, and Alpine is not used because Chromium needs glibc.
