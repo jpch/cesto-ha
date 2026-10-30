@@ -16,6 +16,7 @@ Home Assistant add-on that acts as the central server for the [assistente-compra
 ## Repository layout
 
 - `continente_mcp/`: the add-on (Debian trixie base, Node.js 22, `continentept-mcp` pinned, Playwright Chromium headless shell baked into the image).
+- `continente_mcp/server/`: add-on HTTP API (Node.js 22, TypeScript, Fastify, built-in `node:sqlite`). Contract: [`openapi.yaml`](continente_mcp/server/openapi.yaml), served at `/api/v1/openapi.yaml`. Unit tests (Vitest) run inside the image build on both architectures.
 - `continente_mcp/rootfs/opt/smoke/`: headless smoke test that calls the read-only `search_products` tool. It never touches the cart.
 - `.github/workflows/build.yaml`: builds for `aarch64` and `amd64` and runs the smoke test.
 - `docs/`: architecture and task list.
@@ -27,6 +28,19 @@ Run the smoke test locally:
 ```sh
 docker build -t continente-mcp:test continente_mcp
 docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c continente-mcp:test smoke.mjs
+```
+
+## API basics
+
+- Base URL: `http://<home-assistant>:8099/api/v1`. `GET /health` needs no token.
+- Every other call needs `Authorization: Bearer <token>`. Tokens are created and revoked on the add-on page (admin routes only accept requests coming through the Home Assistant ingress); only a SHA-256 hash is stored.
+- Errors are `{"error": {"code", "message_key"}}`: clients translate the key, so the server never returns user-facing text.
+- Data lives in `/data/app.db` (SQLite, included in HA backups).
+
+Run the server tests locally:
+
+```sh
+cd continente_mcp/server && npm ci && npm test
 ```
 
 ## Installation
