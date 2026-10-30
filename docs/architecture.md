@@ -8,6 +8,7 @@ Turn the household's shared shopping list into a Continente.pt cart, with previe
 
 Hard rules:
 - All server-side logic (parsing, matching, MCP calls, preview, cart mutations, preferences) lives in this add-on (decision 39). The Android app (`jpch/assistente-compras`) is a thin UI client.
+- The add-on edits the real cart (add, set quantity, remove, clear) when `test_mode` is off, and can **never** check out, pay or place an order: a hard tool allowlist plus a denylist, with no option to disable it.
 - Test mode runs the full pipeline, including `preview_cart_changes`, but **never** calls a cart-mutating MCP tool (decision 37).
 - Continente credentials and the session exist only on the server (decision 11).
 - Code, comments, docs and commits in English. UI in European Portuguese by default, all user-facing strings in i18n files (decision 24).
@@ -104,7 +105,7 @@ Screens: Setup (discover/IP + token), List, Add (text/dictation/photo), Parse re
 ## 6. Test strategy
 
 - Server: Vitest unit tests (parser, matcher, LWW, test-mode guard), API tests with a **fake MCP server** (stdio, recorded fixtures) so CI never touches Continente; contract test `openapi.yaml` vs routes.
-- Real MCP only in test mode, manually, on the Pi.
+- Real MCP manually on the Pi; the cart-only tool policy holds in both modes.
 - Image: CI `docker buildx --platform linux/arm64,linux/amd64` + headless smoke test.
 - App: JUnit + Compose UI tests against MockWebServer; lint for hardcoded strings (`HardcodedText` as error).
 

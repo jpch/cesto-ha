@@ -8,7 +8,8 @@ Home Assistant add-on that acts as the central server for the [assistente-compra
 - Shared shopping list in SQLite, with a documented HTTP API and one token per app or phone.
 - Parsing of text lists (quantities and units) and product identification by photo, with a configurable vision AI provider.
 - Request queue, so two people don't change the cart at the same time.
-- Test mode that never changes the real cart.
+- Edits the real Continente cart (add, change, remove), and can never check out, pay or place an order: a hard tool allowlist/denylist that no option turns off.
+- Optional test mode that only simulates cart changes.
 - HA sensors (server, Continente session, items in the list, last sync) and a notification when the session expires.
 - Continente credentials stored only on the server; never completes checkout or payment.
 - Multi-language ready: the add-on web page ships in European Portuguese (default), with all user-facing strings in i18n files and no hardcoded text, so new languages can be added without code changes.
@@ -27,7 +28,7 @@ The app reads the barcode and the packaging text on the phone (ML Kit) and sends
 2. `POST /api/v1/basket/proposals/{id}/apply` with that `preview_id`. Any change to the proposal makes the preview stale (409).
 3. Poll `GET /api/v1/jobs/{id}`. The server sets exact quantities, then reads the cart back to check every line. If Continente cannot say whether a change went through (`unknown`), it stops and asks you to look at the cart instead of retrying. If the session expired, the job waits and resumes after you log in again.
 
-The add-on never checks out or pays: you finish the order in the Continente app or site. With `test_mode` on (the default) nothing is sent and the job ends as `simulated`.
+The add-on never checks out or pays: you finish the order in the Continente app or site. With `test_mode` off it changes your real cart; with `test_mode` on (the default for new installs) nothing is sent and the job ends as `simulated`. Both modes are equally unable to reach checkout or payment.
 
 ## Repository layout
 
@@ -53,7 +54,9 @@ docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c co
 - Errors are `{"error": {"code", "message_key"}}`: clients translate the key, so the server never returns user-facing text.
 - Data lives in `/data/app.db` (SQLite, included in HA backups).
 
-### Continente MCP client and test mode
+### Continente MCP client, cart safety and test mode
+
+- **Hard tool policy** (`server/src/mcp/tools.ts`): only the 11 read tools and the 4 cart tools of continentept-mcp 0.12.1 are allowed. Anything else, and any name that mentions checkout, payment, placing/confirming an order, purchase, delivery slots, vouchers, coupons, billing or cards, is refused with `ForbiddenToolError` before it reaches the MCP. It is enforced on the stdio transport itself, in `TestModeGuard` and in `ContinenteMcp`; there is no option to turn it off. continentept-mcp 0.12.1 has no checkout tool, and the allowlist keeps it that way if a future release adds one. `server/test/policy.test.ts` proves it with test mode off.
 
 - `continentept-mcp` runs as a supervised child process over stdio, started on the first call; if it crashes, the next call starts it again. Read calls are retried after a crash; cart mutations never are.
 - Cart changes go only through `CartWriter`. In test mode it returns a simulated result and never calls the MCP; a second guard on the transport refuses `add_cart_item`, `set_cart_item_quantity`, `remove_cart_item` and `clear_cart` while test mode is on. Tests run against a fake MCP (`server/test/fake-mcp.mjs`) and check that no mutating call reaches it.

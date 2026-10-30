@@ -151,7 +151,7 @@ export class BasketService {
         sent.set(line.product_id, line.outcome);
         if (line.outcome === 'unknown') return this.stop(job, 'needs_attention', 'basket.unknown_outcome');
       }
-      if (job.test_mode) { this.record(job, p, 'simulated'); return this.set(job, 'simulated', 'basket.simulated'); }
+      if (job.test_mode) { this.record(job, p, 'simulated'); return this.set(job, 'simulated'); }
       const after = cartItems(check(await this.cart.getCart()));
       job.cart_after = after;
       for (const line of job.lines) {
