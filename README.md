@@ -31,7 +31,7 @@ docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c co
 
 ## Installation
 
-In Home Assistant, open the add-on store, add this repository (`https://github.com/jpch/continente-mcp-ha`) and install the add-on.
+In Home Assistant, open the add-on store, add this repository (`https://github.com/jpch/continente-mcp-ha`) and install the add-on. Home Assistant pulls a prebuilt image (`ghcr.io/jpch/{arch}-continente-mcp`, aarch64 and amd64) published by CI on every push to `main` and on `v*` tags, so nothing is built on the device.
 
 Warning: uses an unofficial MCP, not affiliated with Continente.
 
