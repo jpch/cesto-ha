@@ -43,6 +43,14 @@ docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c co
 - Cart changes go only through `CartWriter`. In test mode it returns a simulated result and never calls the MCP; a second guard on the transport refuses `add_cart_item`, `set_cart_item_quantity`, `remove_cart_item` and `clear_cart` while test mode is on. Tests run against a fake MCP (`server/test/fake-mcp.mjs`) and check that no mutating call reaches it.
 - One MCP job runs at a time (single-worker queue); a `not_authenticated` error marks the Continente session as invalid (`session_valid` in `/health`).
 
+### Shared list
+
+- One household list (`/lists/current`); every item records who added it (the token name), its quantity/unit, note and state (`pending`, `in_cart`, `not_bought`).
+- Sync: `GET /lists/current` for a full snapshot, then `GET /lists/current/changes?since=<version>` for deltas (deleted items included). Creating with a `client_id` is idempotent, so offline queues can be resent.
+- Last write wins: edits carry the client's `updated_at`; older edits are ignored (`applied: false`, or 409 for deletes); clocks ahead of the server are clamped.
+- `POST /lists/current/parse` turns pasted or dictated pt-PT text (`2 kg batata`, `leite x6`, `meia dúzia de ovos`, `33cl cerveja`) into proposed items without saving them.
+- `POST /lists` archives the current list into history; `POST /lists/history/{id}/repeat` copies one back as pending items. The cart is only ever changed through the preview.
+
 Run the server tests locally:
 
 ```sh
