@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { McpTransport } from './client.js';
-import { isMutating, type MutatingTool, type ReadTool, type ToolResult } from './tools.js';
+import { assertAllowedTool, isMutating, type MutatingTool, type ReadTool, type ToolResult } from './tools.js';
 
 export class MutationBlockedError extends Error {
   constructor(tool: string) { super(`Mutating tool ${tool} blocked`); this.name = 'MutationBlockedError'; }
@@ -13,6 +13,7 @@ export class MutationBlockedError extends Error {
 export class TestModeGuard implements McpTransport {
   constructor(private readonly inner: McpTransport, private readonly testMode: () => boolean) {}
   async callTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+    assertAllowedTool(name);
     if (isMutating(name) && this.testMode()) throw new MutationBlockedError(name);
     return this.inner.callTool(name, args);
   }
@@ -25,12 +26,15 @@ export class ContinenteMcp extends EventEmitter {
   constructor(private readonly transport: McpTransport) { super(); }
 
   async read(tool: ReadTool, args: Record<string, unknown> = {}): Promise<ToolResult> {
+    assertAllowedTool(tool);
     if (isMutating(tool)) throw new MutationBlockedError(tool);
     return this.track(await this.transport.callTool(tool, args));
   }
 
   /** Used only by CartWriter. */
   async mutate(tool: MutatingTool, args: Record<string, unknown>): Promise<ToolResult> {
+    assertAllowedTool(tool);
+    if (!isMutating(tool)) throw new MutationBlockedError(tool);
     return this.track(await this.transport.callTool(tool, args));
   }
 

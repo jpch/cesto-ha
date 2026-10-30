@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { isMutating, type ToolResult } from './tools.js';
+import { assertAllowedTool, isMutating, type ToolResult } from './tools.js';
 
 /** Low-level transport: sends one tool call to the MCP process. */
 export interface McpTransport {
@@ -43,6 +43,7 @@ export class StdioMcpTransport implements McpTransport {
     return this.connecting;
   }
   async callTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+    assertAllowedTool(name);
     const max = this.options.maxRestarts ?? 3;
     for (;;) {
       try {
