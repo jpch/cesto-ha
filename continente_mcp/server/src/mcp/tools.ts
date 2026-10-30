@@ -12,6 +12,20 @@ export type ToolName = ReadTool | MutatingTool;
 
 export const isMutating = (name: string): name is MutatingTool => (MUTATING_TOOLS as readonly string[]).includes(name);
 
+/**
+ * Hard safety policy, not configurable by any option: anything that could move past the cart
+ * (checkout, payment, placing or confirming an order, delivery slots, vouchers) is refused, and so
+ * is any tool not on the explicit allowlist above, so a future continentept-mcp release that adds
+ * such a tool can never be reached.
+ */
+export const FORBIDDEN_TOOL = /checkout|pay|order_(create|place|submit|confirm)|(place|submit|confirm|create|finali[sz]e)_?order|purchase|buy|slot|deliver|voucher|coupon|billing|card/i;
+export const ALLOWED_TOOLS: readonly string[] = [...READ_TOOLS, ...MUTATING_TOOLS];
+export class ForbiddenToolError extends Error {
+  constructor(tool: string) { super(`Tool ${tool} is forbidden: the add-on never checks out, pays or places orders`); this.name = 'ForbiddenToolError'; }
+}
+export const isForbidden = (name: string) => FORBIDDEN_TOOL.test(name) || !ALLOWED_TOOLS.includes(name);
+export function assertAllowedTool(name: string): void { if (isForbidden(name)) throw new ForbiddenToolError(name); }
+
 export type ResultStatus = 'success' | 'empty' | 'partial' | 'error';
 export interface McpError { code: string; message: string; retryable?: boolean }
 export interface ToolResult<T = Record<string, unknown>> {
