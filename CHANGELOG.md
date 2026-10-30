@@ -5,6 +5,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-30
+
+### Added
+
+- Hard tool policy that no option can disable: only the read tools and the four cart tools (add, set quantity, remove, clear) can reach continentept-mcp; checkout, payment, order placement and any unknown tool are refused at the transport. Tested with test mode off.
+- Add-on page banner when the real cart is in use.
+
+### Changed
+
+- Docs, add-on option text and page translations: test mode is an optional simulation, not the only safe mode; the real-cart mode is equally unable to check out or pay.
+
+### Fixed
+
+- Simulated apply jobs no longer return `message_key: "basket.simulated"`. The phone app (0.1.3) did not know that key and showed it as "Ocorreu um erro no servidor." after a successful simulation.
+
 ## [0.1.1] - 2026-10-30
 
 ### Fixed

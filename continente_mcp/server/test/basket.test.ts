@@ -75,7 +75,7 @@ describe('basket preview and apply', () => {
     const pv = (await t.preview(p.proposal_id, 'replace')).json();
     expect(pv.test_mode).toBe(true);
     const j = await t.finished((await t.apply(p.proposal_id, pv.preview_id)).json().job_id);
-    expect(j).toMatchObject({ status: 'simulated', test_mode: true });
+    expect(j).toMatchObject({ status: 'simulated', test_mode: true, message_key: null });
     expect(t.shop.mutations()).toHaveLength(0);
     expect([...t.shop.cart]).toEqual([['4421406', 1]]);
     const items = (await t.app.inject({ url: '/api/v1/lists/current', headers: t.headers })).json().items;

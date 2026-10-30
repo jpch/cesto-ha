@@ -24,6 +24,7 @@
   async function refresh() {
     const s = await api('GET', 'admin/status');
     $('test-mode').hidden = !s.test_mode;
+    $('real-mode').hidden = !!s.test_mode;
     $('version').textContent = s.version;
     $('session').textContent = tr(s.session_valid === null ? 'status.session_unknown' : s.session_valid ? 'status.session_valid' : 'status.session_expired');
     $('queue').textContent = String(s.queue_length);

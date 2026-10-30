@@ -1,6 +1,6 @@
 configuration:
   test_mode:
     name: Modo de teste
-    description: Faz tudo, incluindo a pré-visualização, mas nunca altera o carrinho real do Continente.
+    description: "Ligado: as alterações ao carrinho são só simuladas. Desligado: o add-on altera o seu carrinho Continente real. Em nenhum caso pode finalizar a compra, pagar ou fazer encomendas."
   log_level:
     name: Nível de registo
