@@ -5,6 +5,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-30
+
+### Added
+
+- Remote access (replaces spec decision 9): through Home Assistant ingress on the external HA URL, authenticated by Home Assistant (long-lived token -> ingress session), only the shared list API is reachable. Basket, cart preview/apply, jobs, photos, promotions, preferences and habits answer 403 `error.remote_forbidden`; this cannot be configured. Remote edits are attributed to the HA user. See docs/remote-access.md.
+- `panel_admin: false`, so a non-admin HA user can use the list remotely; the add-on page and admin routes now require HA administrators.
+- `GET /api/v1/promotions`: promotion suggestions for the pending list items, before the cart preview. Read-only (`search_products` of each item's category or name, filtered to products on promotion). Optional AI ranking with reasons.
+- Add-on options `ai_provider` (none|openai|anthropic, default none), `ai_api_key` and `ai_model`, shared with the planned vision AI. Without AI, or when it fails, the search result is returned (`ai_error: error.ai_failed`).
+- `remote` tags in openapi.yaml mark the operations available remotely; a test keeps them equal to the allowlist.
+
+### Fixed
+
+- Health check and admin status reported version 0.1.0: the server version now matches the add-on version, enforced by a test.
+
+
 ## [0.1.2] - 2026-10-30
 
 ### Added

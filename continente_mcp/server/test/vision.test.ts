@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { buildApp } from '../src/app.js';
 import { openDatabase } from '../src/db.js';
 import { createProvider, textQuery } from '../src/vision.js';
-import { testConfig } from './helpers.js';
+import { asLan, testConfig } from './helpers.js';
 import { fixtureCatalog } from './fixtures/catalog.js';
 
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200, 7)]);
@@ -20,6 +20,7 @@ async function setup() {
   const app = buildApp({ config: testConfig({ dataDir }), db: openDatabase(':memory:'), version: '0.1.0', catalog });
   const token = (await app.inject({ method: 'POST', url: '/api/v1/admin/tokens', payload: { name: 'Ana', kind: 'phone' } })).json().token as string;
   const headers = { authorization: `Bearer ${token}` };
+  asLan(app);
   const post = (payload: Record<string, unknown>) => app.inject({ method: 'POST', url: '/api/v1/photos', headers, payload });
   return { app, headers, post, calls, dataDir };
 }
@@ -63,7 +64,7 @@ describe('photo identification', () => {
     expect((await t.post({ barcode: '5601312049045' })).statusCode).toBe(400);
     expect((await t.post({})).statusCode).toBe(400);
     expect((await t.post({ text: 'x', thumbnail_base64: Buffer.alloc(100).toString('base64') })).statusCode).toBe(400);
-    expect((await t.app.inject({ url: '/api/v1/photos/../../etc/thumbnail', headers: t.headers })).statusCode).toBe(404);
+    expect((await t.app.inject({ url: '/api/v1/photos/../../etc/thumbnail', headers: t.headers })).statusCode).toBeOneOf([403, 404]);
     expect(existsSync(join(t.dataDir, 'photos'))).toBe(false);
     expect((await t.app.inject({ method: 'POST', url: '/api/v1/photos', payload: { text: 'leite' } })).statusCode).toBe(401);
   });

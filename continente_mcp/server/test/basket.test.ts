@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { openDatabase } from '../src/db.js';
 import { CartWriter, ContinenteMcp, TestModeGuard } from '../src/mcp/continente.js';
-import { testConfig } from './helpers.js';
+import { asLan, testConfig } from './helpers.js';
 import { fixtureCatalog } from './fixtures/catalog.js';
 import { FakeShop } from './fixtures/shop.js';
 
@@ -20,6 +20,7 @@ async function setup(testMode: boolean) {
     setQuantity: (id, q) => writer.setQuantity(id, q), clearCart: () => writer.clearCart() } });
   const token = (await app.inject({ method: 'POST', url: '/api/v1/admin/tokens', payload: { name: 'Ana', kind: 'phone' } })).json().token as string;
   const headers = { authorization: `Bearer ${token}` };
+  asLan(app);
   const add = (name: string, quantity?: number, unit?: string) => app.inject({ method: 'POST', url: '/api/v1/lists/current/items', headers, payload: { name, quantity, unit } });
   const propose = async () => (await app.inject({ method: 'POST', url: '/api/v1/basket/proposals', headers, payload: {} })).json();
   const preview = (id: string, mode = 'merge') => app.inject({ method: 'POST', url: `/api/v1/basket/proposals/${id}/preview`, headers, payload: { mode } });
