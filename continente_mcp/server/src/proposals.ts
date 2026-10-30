@@ -5,7 +5,7 @@ import type { HabitsService } from './habits.js';
 import type { ListService } from './lists.js';
 import { Matcher, type Line } from './matcher.js';
 
-export interface Proposal { proposal_id: string; list_id: number; created_by: string; created_at: string; updated_at: string; lines: Line[] }
+export interface Proposal { proposal_id: string; list_id: number; created_by: string; created_at: string; updated_at: string; revision?: number; lines: Line[] }
 export class ProposalError extends Error { constructor(readonly status: number, readonly key: string) { super(key); } }
 
 /** Matching run over the pending items of the current list; stored so choices and previews can refer to it. */
@@ -40,6 +40,7 @@ export class ProposalService {
 
   save(p: Proposal): void {
     p.updated_at = new Date().toISOString();
+    p.revision = (p.revision ?? 0) + 1;
     this.db.prepare('UPDATE proposals SET json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(p), p.updated_at, p.proposal_id);
   }
 

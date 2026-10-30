@@ -17,6 +17,10 @@ Home Assistant add-on that acts as the central server for the [assistente-compra
 
 `POST /api/v1/basket/proposals` turns the pending list items into Continente products, read-only on the account. For each item the server tries, in order: the household's shared preference for that item name, the products you buy most often, your favourites, then a catalogue search. Generic names ("iogurtes") return 2–4 options to choose from; when the usual product is out of stock the line shows it as `unavailable` with up to 3 available alternatives. Quantities are converted to what the cart needs (1,5 kg of rice in 1 kg packs → 2; 1 kg of apples sold per piece → 5 pieces). A choice made on one phone (`PUT /api/v1/preferences/{item}`) is reused by everyone next time.
 
+## Photos
+
+The app reads the barcode and the packaging text on the phone (ML Kit) and sends them to `POST /api/v1/photos`; the server searches Continente and returns up to 5 candidates to add to the list. `vision_provider` is `none` by default and is the only option in this version, so images are never sent to any outside service, and the original photo is never written to disk. Only an optional small thumbnail is kept, until you delete it.
+
 ## Filling the cart
 
 1. `POST /api/v1/basket/proposals/{id}/preview` with `mode` `merge` (add to what is already in the cart) or `replace` (empty it first). This only reads the account and shows the totals and estimated cost.
