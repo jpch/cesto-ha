@@ -2,6 +2,18 @@
 
 Home Assistant add-on that acts as the central server for the [assistente-compras](https://github.com/jpch/assistente-compras) app. It runs the unofficial Continente MCP and stores the household's shared shopping list.
 
+## Remote access (list only)
+
+Away from home the app reaches only the shared list API, through Home Assistant ingress on your external HA URL,
+authenticated with an HA long-lived token (a non-admin HA user is enough). The cart, basket, jobs, photos and
+promotions are never reachable remotely, and port 8099 must not be forwarded. Setup: [docs/remote-access.md](docs/remote-access.md).
+
+## Promotion suggestions
+
+`GET /api/v1/promotions` suggests products on promotion for the pending list items (LAN only, read-only). Set
+`ai_provider` and `ai_api_key` in the add-on options to let an AI choose and explain them; with `none` (default)
+nothing leaves the server and the suggestions come from a Continente search of each item's category.
+
 ## Main features
 
 - Runs `continentept-mcp` (Continente catalogue search, favourites, history and cart) and exposes it over HTTP on the home network.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { openDatabase } from '../src/db.js';
-import { testConfig } from './helpers.js';
+import { asLan, testConfig } from './helpers.js';
 import { fixtureCatalog } from './fixtures/catalog.js';
 
 async function setup(withCatalog = true) {
@@ -10,6 +10,7 @@ async function setup(withCatalog = true) {
   const app = buildApp({ config: testConfig(), db, version: '0.1.0', catalog: withCatalog ? catalog : undefined });
   const token = (await app.inject({ method: 'POST', url: '/api/v1/admin/tokens', payload: { name: 'Ana', kind: 'phone' } })).json().token as string;
   const headers = { authorization: `Bearer ${token}` };
+  asLan(app);
   return { app, headers };
 }
 

@@ -61,5 +61,8 @@
   "ha.list_items": "Itens na lista de compras",
   "ha.last_sync": "Última sincronização da lista",
   "ha.session_expired.title": "Sessão Continente expirada",
-  "ha.session_expired.message": "A sessão no Continente expirou. As listas ficam em espera até voltar a iniciar sessão na [página do add-on]({url})."
+  "ha.session_expired.message": "A sessão no Continente expirou. As listas ficam em espera até voltar a iniciar sessão na [página do add-on]({url}).",
+  "error.remote_forbidden": "Indisponível fora de casa: através do Home Assistant só a lista de compras pode ser usada.",
+  "error.ai_failed": "O fornecedor de IA falhou; a mostrar as promoções do Continente encontradas pela pesquisa.",
+  "error.admin_only": "Só os administradores do Home Assistant podem abrir esta página."
 }
