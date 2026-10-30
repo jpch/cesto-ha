@@ -4,6 +4,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { CredentialsStore } from './credentials.js';
 import { openDatabase } from './db.js';
+import { HaIntegration, listStats } from './ha.js';
 import { LoginService } from './login.js';
 import { StdioMcpTransport } from './mcp/client.js';
 import { CartWriter, ContinenteMcp, TestModeGuard } from './mcp/continente.js';
@@ -41,7 +42,23 @@ const checkSession = async () => {
 };
 login.on('success', () => { restartMcp(); void checkSession(); });
 
+// Home Assistant entities and the session-expired notification (Supervisor API).
+const ha = process.env.SUPERVISOR_TOKEN
+  ? new HaIntegration({ supervisorUrl: 'http://supervisor', token: process.env.SUPERVISOR_TOKEN, language: config.language, log: m => console.log(m) })
+  : undefined;
+let haTimer: NodeJS.Timeout | undefined;
+const publishHa = () => {
+  if (!ha) return;
+  clearTimeout(haTimer);
+  haTimer = setTimeout(() => {
+    void ha.publish({ version, testMode: config.testMode, sessionValid: mcp.sessionValid, queueLength: queue.length, ...listStats(db) });
+  }, 500);
+};
+mcp.on('session', publishHa);
+if (ha) { publishHa(); setInterval(publishHa, 60_000).unref(); }
+
 const app = buildApp({
+  onListChanged: publishHa,
   config, db, version, credentials, login, checkSession,
   queueLength: () => queue.length,
   sessionValid: () => mcp.sessionValid,
