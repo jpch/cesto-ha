@@ -17,6 +17,8 @@ import { ProposalError, ProposalService } from './proposals.js';
 import { BasketService, type CartApi } from './basket.js';
 import { createProvider, PhotoError, PhotoService, type PhotoInput } from './vision.js';
 import type { EventEmitter } from 'node:events';
+import { createAiClient, type AiClient } from './ai.js';
+import { PromotionService } from './promotions.js';
 
 declare module 'fastify' {
   interface FastifyRequest { principal?: TokenRecord }
@@ -44,6 +46,8 @@ export interface AppDeps {
   cart?: CartApi;
   /** Emits `session` (boolean); waiting apply jobs resume on `true`. */
   sessionEvents?: EventEmitter;
+  /** Overrides the AI client built from config.ai (tests). */
+  ai?: AiClient | null;
   webDir?: string;
   vncPort?: number;
 }
@@ -52,6 +56,12 @@ export interface AppDeps {
 export const apiError = (code: string, messageKey: string) => ({ error: { code, message_key: messageKey } });
 
 const PUBLIC_ROUTES = new Set(['/api/v1/health', '/api/v1/openapi.yaml']);
+
+/**
+ * Routes reachable through Home Assistant ingress, which is also the remote path (external HA URL).
+ * Only the shared list API: never the cart, basket, jobs, photos, promotions, preferences or habits.
+ */
+export const REMOTE_ROUTE = /^\/api\/v1\/(health|openapi\.yaml|me|lists(\/current(\/changes|\/items|\/parse|\/clear)?|\/history(\/\d+\/repeat)?)?|items\/\d+)$/;
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: deps.config.logLevel === 'debug' ? { level: 'debug' } : false });
@@ -65,11 +75,24 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     // The web page, noVNC and admin routes are only reachable through Home Assistant ingress.
     if (!path.startsWith('/api/v1/') || path.startsWith('/api/v1/admin/')) {
       if (!isIngress(req)) return reply.code(403).send(apiError('forbidden', 'error.admin_ingress_only'));
+      // panel_admin is false so non-admin HA users can use the list remotely; the add-on page stays admin-only.
+      // Supervisor strips client-sent X-Remote-* headers and sets them from the session user.
+      const groups = req.headers['x-remote-user-groups'];
+      if (req.headers['x-remote-user-id'] && !(typeof groups === 'string' && groups.split(',').includes('system-admin')))
+        return reply.code(403).send(apiError('forbidden', 'error.admin_only'));
       return;
     }
+    const viaHa = isIngress(req);
+    if (viaHa && !REMOTE_ROUTE.test(path)) return reply.code(403).send(apiError('forbidden', 'error.remote_forbidden'));
     if (PUBLIC_ROUTES.has(path)) return;
     const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '');
-    const principal = match ? tokens.verify(match[1]!) : undefined;
+    let principal = match ? tokens.verify(match[1]!) : undefined;
+    // Through ingress, Home Assistant has already authenticated the user (HA session or long-lived token).
+    const haUser = req.headers['x-remote-user-id'];
+    if (!principal && viaHa && typeof haUser === 'string' && haUser) {
+      const name = [req.headers['x-remote-user-display-name'], req.headers['x-remote-user-name']].find(v => typeof v === 'string' && v.trim()) as string | undefined;
+      principal = { id: 0, name: (name ?? 'Home Assistant').trim().slice(0, 60), kind: 'ha', created_at: '', last_used_at: null, revoked_at: null };
+    }
     if (!principal) return reply.code(401).send(apiError('unauthorized', 'error.unauthorized'));
     req.principal = principal;
   });
@@ -285,6 +308,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.delete<{ Params: { key: string } }>('/api/v1/preferences/:key', async (req, reply) =>
     prefs.remove(itemKey(req.params.key)) ? reply.code(204).send() : reply.code(404).send(apiError('not_found', 'error.preference_not_found')));
+
+  const ai = deps.ai !== undefined ? deps.ai : createAiClient(deps.config.ai);
+  const promotions = catalog ? new PromotionService(catalog, ai, deps.config.language) : undefined;
+  app.get('/api/v1/promotions', async () => {
+    if (!promotions) throw new ProposalError(503, 'error.mcp_unavailable');
+    const list = lists.current();
+    return runJob(() => promotions.suggest(lists.items(list.id)));
+  });
 
   app.get('/api/v1/habits', async () => needCatalog().habits.get());
 

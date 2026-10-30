@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
-export interface TokenRecord { id: number; name: string; kind: 'phone' | 'app'; created_at: string; last_used_at: string | null; revoked_at: string | null }
+export interface TokenRecord { id: number; name: string; kind: 'phone' | 'app' | 'ha'; created_at: string; last_used_at: string | null; revoked_at: string | null }
 
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 

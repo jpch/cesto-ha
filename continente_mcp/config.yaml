@@ -1,5 +1,5 @@
 name: Continente MCP
-version: "0.1.2"
+version: "0.2.0"
 slug: continente_mcp
 description: Shared shopping list and Continente.pt basket builder (unofficial MCP). Never checks out or pays.
 url: https://github.com/jpch/continente-mcp-ha
@@ -14,11 +14,17 @@ ingress: true
 homeassistant_api: true
 hassio_api: true
 ingress_port: 8099
+# Non-admin HA users may open ingress (remote list API only); the add-on page itself still requires an HA admin.
+panel_admin: false
 ports:
   8099/tcp: 8099
 options:
   test_mode: true
   log_level: info
+  ai_provider: none
 schema:
   test_mode: bool
   log_level: list(debug|info|warning|error)
+  ai_provider: list(none|openai|anthropic)
+  ai_api_key: password?
+  ai_model: str?

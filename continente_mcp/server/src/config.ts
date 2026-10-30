@@ -1,4 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
+import { AI_PROVIDERS, type AiConfig, type AiProviderName } from './ai.js';
 
 export type LogLevel = 'debug' | 'info' | 'warning' | 'error';
 export type VisionProvider = 'none';
@@ -7,6 +8,8 @@ export interface Config {
   testMode: boolean;
   logLevel: LogLevel;
   visionProvider: VisionProvider;
+  /** Optional AI provider shared by promotion suggestions and the planned vision AI. Default none. */
+  ai: AiConfig;
   language: string;
   dataDir: string;
   port: number;
@@ -27,6 +30,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     testMode: raw.test_mode !== false,
     logLevel,
     visionProvider: 'none',
+    ai: {
+      provider: AI_PROVIDERS.includes(raw.ai_provider as AiProviderName) ? (raw.ai_provider as AiProviderName) : 'none',
+      apiKey: typeof raw.ai_api_key === 'string' && raw.ai_api_key.trim() ? raw.ai_api_key.trim() : null,
+      model: typeof raw.ai_model === 'string' && raw.ai_model.trim() ? raw.ai_model.trim() : null,
+    },
     language: typeof raw.language === 'string' && raw.language ? raw.language : 'pt-PT',
     dataDir: env.DATA_DIR ?? '/data',
     port: Number(env.PORT ?? 8099),
