@@ -130,3 +130,8 @@ Screens: Setup (discover/IP + token), List, Add (text/dictation/photo), Parse re
 | `unknown` mutation outcome | Stop, `get_cart`, `needs_attention` job, no automatic retry |
 | Packaging-text matching weaker without vision AI | Show candidates when in doubt; provider can be enabled later without app changes |
 | Plain HTTP on LAN | Home network only, bearer tokens, revocable; HTTPS optional later |
+
+## Remote access and promotions (v0.2.0)
+
+- Remote access is HA ingress only, with a fixed list-API allowlist enforced in the add-on; see [remote-access.md](remote-access.md).
+- `GET /api/v1/promotions` is read-only (`search_products` only) and LAN-only. The optional AI provider (`ai_provider`, shared with the planned vision AI) only ranks candidates that came from the search; its reply cannot introduce products.

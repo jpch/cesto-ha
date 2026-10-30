@@ -1,16 +1,61 @@
 openapi: 3.1.0
 info:
   title: Continente MCP add-on API
-  version: 0.1.0
-  description: HTTP API of the continente-mcp-ha add-on. Errors return a message key, never user-facing text.
+  version: 0.2.0
+  description: |
+    HTTP API of the continente-mcp-ha add-on. Errors return a message key, never user-facing text.
+
+    Two ways in:
+    - LAN (at home): `http://<ha-host>:8099/api/v1`, add-on bearer token (`cmh_...`, created on the add-on page). Full API.
+    - Remote (away from home): through Home Assistant ingress on the external HA URL, authenticated by Home Assistant
+      (`ingress_session` cookie obtained with an HA long-lived token, see docs/remote-access.md). ONLY the operations
+      tagged `remote` (shared list API) are reachable; everything else (basket, cart preview/apply, jobs, photos,
+      promotions, preferences, habits) answers 403 `error.remote_forbidden`. The Continente MCP is never exposed over HTTP.
+      The author of remote edits is the Home Assistant user's display name; no add-on token is needed.
 servers:
   - url: http://homeassistant.local:8099/api/v1
+    description: LAN, add-on bearer token, full API
+  - url: "{ha_external_url}/api/hassio_ingress/{ingress_token}/api/v1"
+    description: Remote through HA ingress (cookie ingress_session), list API only
+    variables:
+      ha_external_url: { default: "https://example.ui.nabu.casa" }
+      ingress_token: { default: "from supervisor /addons/75545ee1_continente_mcp/info -> ingress_url" }
 security:
   - bearer: []
+  - haIngress: []
 components:
   securitySchemes:
-    bearer: { type: http, scheme: bearer }
+    bearer: { type: http, scheme: bearer, description: "Add-on token (LAN only)" }
+    haIngress: { type: apiKey, in: cookie, name: ingress_session, description: "Home Assistant ingress session (remote, list API only)" }
   schemas:
+    Promotions:
+      type: object
+      required: [source, provider, generated_at, suggestions, ai_error]
+      properties:
+        source: { type: string, enum: [ai, search] }
+        provider: { type: string, enum: [none, openai, anthropic] }
+        generated_at: { type: string, format: date-time }
+        ai_error: { type: [string, "null"], description: "error.ai_failed when the AI failed and the search fallback was used" }
+        suggestions:
+          type: array
+          items:
+            type: object
+            required: [item_id, item_name, query, product, reason]
+            properties:
+              item_id: { type: integer }
+              item_name: { type: string }
+              query: { type: string, description: "category or item name searched" }
+              reason: { type: [string, "null"], description: "AI explanation (add-on language); null without AI" }
+              product:
+                type: object
+                required: [product_id, name, package_text, price, image_url, promotions]
+                properties:
+                  product_id: { type: string }
+                  name: { type: string }
+                  package_text: { type: [string, "null"] }
+                  price: { type: [object, "null"], description: "{amount {currency, minorUnits}, per item|piece|kg|l}" }
+                  image_url: { type: [string, "null"] }
+                  promotions: { type: array, items: { type: object, description: "{kind recommended_price|immediate_discount|multi_buy|nth_unit_discount|other, label, bundle?, nthUnit?, percentOff?}" } }
     Error:
       type: object
       properties:
@@ -87,16 +132,19 @@ components:
 paths:
   /health:
     get:
+      tags: [remote]
       security: []
       summary: Server status (no auth)
       responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Health" } } } } }
   /openapi.yaml:
     get:
+      tags: [remote]
       security: []
       summary: This document
       responses: { "200": { description: OK } }
   /me:
     get:
+      tags: [remote]
       summary: The calling token
       responses:
         "200": { description: OK }
@@ -120,25 +168,30 @@ paths:
       responses: { "204": { description: Revoked }, "404": { description: Not found }, "403": { description: Not from ingress } }
   /lists/current:
     get:
+      tags: [remote]
       summary: Current household list with all non-deleted items
       responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Snapshot" } } } } }
   /lists/current/changes:
     get:
+      tags: [remote]
       summary: Delta sync; items (including deleted) changed after `since`. If `list.id` differs from the cached one, reload fully.
       parameters: [{ name: since, in: query, required: true, schema: { type: integer, minimum: 0 } }]
       responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Snapshot" } } } }, "400": { description: Invalid since } }
   /lists/current/items:
     post:
+      tags: [remote]
       summary: Add an item (added_by = token name)
       requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/ItemInput" } } } }
       responses: { "201": { description: Created }, "200": { description: Already created with this client_id }, "400": { description: Invalid } }
   /items/{id}:
     patch:
+      tags: [remote]
       summary: Edit an item (last write wins); response has `applied` false when the edit was older than the stored one
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/ItemInput" } } } }
       responses: { "200": { description: Item after the edit attempt }, "404": { description: Not found } }
     delete:
+      tags: [remote]
       summary: Delete an item (soft delete, propagates through delta sync)
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
@@ -146,24 +199,29 @@ paths:
       responses: { "204": { description: Deleted }, "404": { description: Not found }, "409": { description: Stale delete (item edited later) } }
   /lists/current/parse:
     post:
+      tags: [remote]
       summary: Parse free text (pt-PT) into proposed items; nothing is saved
       requestBody: { content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, maxLength: 20000 } } } } } }
       responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/ParsedItem" } } } } } } } }
   /lists/current/clear:
     post:
+      tags: [remote]
       summary: Clear items in the cart or all items of the current list
       requestBody: { content: { application/json: { schema: { type: object, required: [scope], properties: { scope: { type: string, enum: [in_cart, all] } } } } } }
       responses: { "200": { description: OK }, "400": { description: Invalid scope } }
   /lists:
     post:
+      tags: [remote]
       summary: Archive the current list into history and start a new one
       responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Snapshot" } } } } }
   /lists/history:
     get:
+      tags: [remote]
       summary: Archived lists, newest first
       responses: { "200": { description: OK } }
   /lists/history/{id}/repeat:
     post:
+      tags: [remote]
       summary: Copy an archived list's items into the current list as pending (the cart is only reached through the preview)
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       responses: { "200": { description: OK }, "404": { description: Not found } }
@@ -238,6 +296,21 @@ paths:
       summary: Forget a preference
       parameters: [{ name: item_key, in: path, required: true, schema: { type: string } }]
       responses: { "204": { description: removed }, "404": { description: not found } }
+  /promotions:
+    get:
+      summary: "Promotion suggestions for the pending list items, to show before the cart preview. Read-only (search_products only), never touches the cart or checkout. LAN only."
+      description: |
+        For each pending item (max 20) the server searches its category (or its name when it has no category) and keeps
+        available products that have promotions (max 3 per item). If an AI provider is configured (add-on options
+        ai_provider/ai_api_key/ai_model) it picks the most relevant of those candidates and adds a short reason in the
+        add-on language; if not configured or it fails, the plain search result is returned (source=search; ai_error set when it failed).
+      responses:
+        "200":
+          description: suggestions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Promotions" }
+        "503": { description: "Continente MCP unavailable (error.mcp_unavailable)" }
   /habits:
     get:
       summary: Cached purchase habits (frequently bought + favourites, refreshed every 24 h)
