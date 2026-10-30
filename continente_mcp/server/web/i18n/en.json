@@ -54,5 +54,11 @@
   "error.login_unavailable": "Sign-in unavailable.",
   "error.invalid_token_request": "Enter a name (up to 60 characters) and a type.",
   "error.token_not_found": "Token not found.",
-  "error.admin_ingress_only": "Only available through Home Assistant."
+  "error.admin_ingress_only": "Only available through Home Assistant.",
+  "ha.server_status": "Continente MCP",
+  "ha.session_valid": "Continente session",
+  "ha.list_items": "Shopping list items",
+  "ha.last_sync": "Shopping list last sync",
+  "ha.session_expired.title": "Continente session expired",
+  "ha.session_expired.message": "The Continente session expired. Lists wait until you sign in again on the [add-on page]({url})."
 }
