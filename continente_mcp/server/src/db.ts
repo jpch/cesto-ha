@@ -79,6 +79,10 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  ALTER TABLE items ADD COLUMN product_id TEXT;
+  ALTER TABLE items ADD COLUMN product_json TEXT;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

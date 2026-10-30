@@ -1,8 +1,9 @@
 import { itemKey, tokens, type CatalogReader, type Product, type Qty } from './catalog.js';
 import type { Habits, PreferenceStore } from './habits.js';
+import type { LinkedProduct } from './lists.js';
 
-export interface MatchItem { id: number; name: string; quantity: number | null; unit: string | null }
-export type Reason = 'preference' | 'frequent' | 'favorite' | 'search';
+export interface MatchItem { id: number; name: string; quantity: number | null; unit: string | null; product?: LinkedProduct | null }
+export type Reason = 'linked' | 'preference' | 'frequent' | 'favorite' | 'search';
 export interface Option {
   product_id: string; name: string; package_text: string | null; price: Product['price'] | null;
   availability: string; image_url: string | null; promotions: Product['promotions']; reason: Reason;
@@ -98,6 +99,9 @@ export class Matcher {
       selected: null, options: [], needs_choice: true, out_of_stock: false, unavailable: null, quantity: 1, quantity_basis: 'default', promo: null, skipped: false, error: null,
     };
 
+    // 0. Product linked to the item by the user (decision 58): used as is, no re-matching.
+    if (item.product) return this.linked(line, item, item.product);
+
     const search = await this.catalog.searchProducts({ query: item.name, limit: 10, favoritesFirst: true });
     if (search.status === 'error') { line.error = search.error?.code ?? 'search_failed'; }
     const found = ((search.data?.products as Product[] | undefined) ?? []).filter(p => p.productId);
@@ -153,6 +157,31 @@ export class Matcher {
     } else if (candidates.length === 0) {
       line.error = line.error ?? 'no_match';
     }
+    return line;
+  }
+
+  private async linked(line: Line, item: MatchItem, link: LinkedProduct): Promise<Line> {
+    const res = await this.catalog.getProduct(link.product_id);
+    const fresh = res.status !== 'error' && res.data ? (res.data as unknown as Product) : null;
+    // Keep the linked id even if the catalogue answers with something else or not at all.
+    const product: Product = fresh && String(fresh.productId) === link.product_id ? fresh : {
+      productId: link.product_id, name: link.name, packageText: link.package_text, price: (link.price as Product['price']) ?? null,
+      imageUrl: link.image_url, availability: 'unknown', promotions: [],
+    };
+    if (!product.imageUrl && link.image_url) product.imageUrl = link.image_url;
+    if (product.availability === 'unavailable') {
+      line.out_of_stock = true;
+      line.unavailable = toOption(product, 'linked');
+      const search = await this.catalog.searchProducts({ query: item.name, limit: 10, favoritesFirst: true });
+      const words = tokens(item.name);
+      line.options = ((search.data?.products as Product[] | undefined) ?? [])
+        .filter(p => p.productId && p.productId !== link.product_id && p.availability !== 'unavailable' && overlap(words, tokens(p.name)) > 0)
+        .slice(0, 3).map(p => toOption(p, 'search'));
+      return line;
+    }
+    line.selected = toOption(product, 'linked');
+    line.needs_choice = false;
+    await this.finishQuantity(line, product, item, null);
     return line;
   }
 

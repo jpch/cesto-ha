@@ -19,6 +19,8 @@ export interface Product {
   productId: string;
   name: string;
   price?: PriceTag | null;
+  /** Price per kg or l, when the shop shows one. */
+  unitPrice?: { amount: Money; per: 'kg' | 'l'; basis?: string } | null;
   packageText?: string | null;
   package?: { count: number; each: Qty | null; net: Qty | null; approximate?: boolean } | null;
   availability?: 'available' | 'unavailable' | 'unknown';

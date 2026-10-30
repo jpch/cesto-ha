@@ -11,14 +11,27 @@ export class FakeShop implements McpTransport {
   /** Silently drops a write (confirmed but not in the cart) to test verification. */
   dropFor = new Set<string>();
   expired = false;
+  /** get_cart answers with the cart as it was before the writes this many times (the real cart page lags). */
+  staleReads = 0;
+  private snapshot: Map<string, number> | null = null;
+  /** Report quantities as plain numbers (old fixture shape) instead of continentept-mcp 0.12 objects. */
+  plainQuantities = false;
   async close(): Promise<void> {}
 
   async callTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
     this.calls.push({ name, args });
     if (this.expired) return { status: 'error', error: { code: 'not_authenticated', message: 'sign in', retryable: false } };
-    const items = () => [...this.cart].map(([productId, quantity], i) => ({ productId, cartItemId: `c${i}`, quantity }));
+    const items = (cart: Map<string, number>) => [...cart].map(([productId, quantity], i) => ({
+      productId, cartItemId: `c${i}`, name: `P${productId}`, kind: 'product',
+      quantity: this.plainQuantities ? quantity : { status: 'known', quantity: { value: quantity, unit: 'un' } },
+    }));
+    if (['set_cart_item_quantity', 'clear_cart'].includes(name) && !this.snapshot && this.staleReads > 0) this.snapshot = new Map(this.cart);
     switch (name) {
-      case 'get_cart': return { status: 'success', data: { items: items() } };
+      case 'get_cart': {
+        if (this.snapshot && this.staleReads > 0) { this.staleReads--; return { status: 'success', data: { items: items(this.snapshot) } }; }
+        this.snapshot = null;
+        return { status: 'success', data: { items: [...items(this.cart), { productId: '1', cartItemId: 'bag', name: 'Saco', kind: 'bag', quantity: { status: 'known', quantity: { value: 1, unit: 'un' } } }] } };
+      }
       case 'preview_cart_changes': {
         const wanted = args.items as { productId: string; quantity: number }[];
         const cost = wanted.reduce((s, w) => s + (PRODUCTS.find(p => p.productId === w.productId)?.price?.amount.minorUnits ?? 0) * w.quantity, 0);

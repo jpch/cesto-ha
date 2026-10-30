@@ -34,11 +34,15 @@ nothing leaves the server and the suggestions come from a Continente search of e
 
 The app reads the barcode and the packaging text on the phone (ML Kit) and sends them to `POST /api/v1/photos`; the server searches Continente and returns up to 5 candidates to add to the list. `vision_provider` is `none` by default and is the only option in this version, so images are never sent to any outside service, and the original photo is never written to disk. Only an optional small thumbnail is kept, until you delete it.
 
+## Searching Continente for a product (linked items)
+
+After reading a product with the camera, the app can ask `POST /api/v1/catalog/search` (`query` = composed name, `barcode` optional) for candidates with image, size, price, price per kg/l and promotions. The product the user picks is saved on the list item (`product`), and the basket then uses exactly that product instead of matching the name again. Read-only; LAN only.
+
 ## Filling the cart
 
 1. `POST /api/v1/basket/proposals/{id}/preview` with `mode` `merge` (add to what is already in the cart) or `replace` (empty it first). This only reads the account and shows the totals and estimated cost.
 2. `POST /api/v1/basket/proposals/{id}/apply` with that `preview_id`. Any change to the proposal makes the preview stale (409).
-3. Poll `GET /api/v1/jobs/{id}`. The server sets exact quantities, then reads the cart back to check every line. If Continente cannot say whether a change went through (`unknown`), it stops and asks you to look at the cart instead of retrying. If the session expired, the job waits and resumes after you log in again.
+3. Poll `GET /api/v1/jobs/{id}` (its `progress` says which step is running, e.g. adding 3 of 5). The server sets exact quantities, then reads the cart back to check every line by product id and quantity, waiting and reading again (up to 4 times) while the cart page catches up. Lines still missing are listed by name in `missing`; `POST /api/v1/jobs/{id}/retry-missing` re-sends only those. If Continente cannot say whether a change went through (`unknown`), it stops and asks you to look at the cart instead of retrying. If the session expired, the job waits and resumes after you log in again.
 
 The add-on never checks out or pays: you finish the order in the Continente app or site. With `test_mode` off it changes your real cart; with `test_mode` on (the default for new installs) nothing is sent and the job ends as `simulated`. Both modes are equally unable to reach checkout or payment.
 

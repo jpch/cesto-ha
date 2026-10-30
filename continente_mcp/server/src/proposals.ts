@@ -25,7 +25,7 @@ export class ProposalService {
     if (!items.length) throw new ProposalError(409, 'error.nothing_to_match');
     const habits = await this.habits.fresh().catch(() => this.habits.get());
     const lines: Line[] = [];
-    for (const item of items) lines.push(await this.matcher.match({ id: item.id, name: item.name, quantity: item.quantity, unit: item.unit }, habits));
+    for (const item of items) lines.push(await this.matcher.match({ id: item.id, name: item.name, quantity: item.quantity, unit: item.unit, product: item.product }, habits));
     const now = new Date().toISOString();
     const proposal: Proposal = { proposal_id: randomUUID(), list_id: list.id, created_by: createdBy, created_at: now, updated_at: now, lines };
     this.db.prepare('INSERT INTO proposals (id, list_id, created_by, json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
