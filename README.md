@@ -15,7 +15,7 @@ Home Assistant add-on that acts as the central server for the [assistente-compra
 
 ## Repository layout
 
-- `continente_mcp/`: the add-on (Debian trixie base, Node.js 22, `continentept-mcp` pinned, Playwright Chromium headless shell baked into the image).
+- `continente_mcp/`: the add-on (Debian trixie base, Node.js 22, `continentept-mcp` pinned, Playwright Chromium baked into the image, plus Xvnc/noVNC for the sign-in window).
 - `continente_mcp/server/`: add-on HTTP API (Node.js 22, TypeScript, Fastify, built-in `node:sqlite`). Contract: [`openapi.yaml`](continente_mcp/server/openapi.yaml), served at `/api/v1/openapi.yaml`. Unit tests (Vitest) run inside the image build on both architectures.
 - `continente_mcp/rootfs/opt/smoke/`: headless smoke test that calls the read-only `search_products` tool. It never touches the cart.
 - `.github/workflows/build.yaml`: builds for `aarch64` and `amd64` and runs the smoke test.
@@ -50,6 +50,16 @@ docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c co
 - Last write wins: edits carry the client's `updated_at`; older edits are ignored (`applied: false`, or 409 for deletes); clocks ahead of the server are clamped.
 - `POST /lists/current/parse` turns pasted or dictated pt-PT text (`2 kg batata`, `leite x6`, `meia dúzia de ovos`, `33cl cerveja`) into proposed items without saving them.
 - `POST /lists` archives the current list into history; `POST /lists/history/{id}/repeat` copies one back as pending items. The cart is only ever changed through the preview.
+
+### Add-on page (HA ingress)
+
+Open the add-on from the Home Assistant sidebar ("Open web UI"). The page is in European Portuguese by default (English if the `language` is English); every string lives in `server/web/i18n/*.json`. It is only served through ingress: requests from the LAN to `/`, `/vnc/` or `/api/v1/admin/*` get 403.
+
+- Status: version, test-mode banner, Continente session (with a "check session" button that does a read-only `get_cart`), queue length.
+- Continente account: email and password are written to `/data/continente/credentials.env` (0600, folder 0700). The password is never shown or returned; the page only shows a masked email.
+- Sign in: starts, on demand, a virtual display (TigerVNC `Xvnc`), `websockify` + noVNC (proxied under `./vnc/`) and `continentept-mcp login --show-browser`. If Continente asks "Não sou um robô", tick it in the embedded window. Everything stops when the session is saved, on failure, on cancel or after 6 minutes; the MCP process then restarts to use the new session.
+- Tokens: create (shown once), list and revoke phone/app tokens.
+- Export: downloads lists, items, purchase runs and shared preferences as JSON (no tokens or credentials).
 
 Run the server tests locally:
 

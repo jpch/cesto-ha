@@ -167,3 +167,41 @@ paths:
       summary: Copy an archived list's items into the current list as pending (the cart is only reached through the preview)
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       responses: { "200": { description: OK }, "404": { description: Not found } }
+  /admin/status:
+    get:
+      summary: Add-on status for the ingress page (HA ingress only)
+      security: []
+      responses: { "200": { description: "version, test_mode, language, session_valid, queue_length, credentials {configured, masked email}, login {state, started_at}" }, "403": { description: Not from ingress } }
+  /admin/credentials:
+    put:
+      summary: Save the Continente account to /data/continente/credentials.env (0600); the password is never returned (HA ingress only)
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, password], properties: { email: { type: string }, password: { type: string, writeOnly: true } } } } } }
+      responses: { "204": { description: Saved; the MCP process restarts on its next call }, "400": { description: Invalid }, "403": { description: Not from ingress } }
+    delete:
+      summary: Remove the saved Continente account (HA ingress only)
+      security: []
+      responses: { "204": { description: Removed }, "404": { description: None saved } }
+  /admin/login:
+    get:
+      summary: State of the on-demand sign-in session (HA ingress only)
+      security: []
+      responses: { "200": { description: "state: idle | starting | waiting_user | succeeded | failed | timed_out | cancelled" } }
+    post:
+      summary: Start a sign-in session (virtual display, noVNC at ./vnc/, visible browser) to complete the CAPTCHA (HA ingress only)
+      security: []
+      responses: { "202": { description: Started }, "409": { description: No saved account }, "503": { description: Not available } }
+    delete:
+      summary: Cancel the sign-in session (HA ingress only)
+      security: []
+      responses: { "204": { description: Cancelled } }
+  /admin/session/check:
+    post:
+      summary: Check the Continente session with a read-only account call, get_cart (HA ingress only)
+      security: []
+      responses: { "200": { description: session_valid } }
+  /admin/export:
+    get:
+      summary: Download lists with items, purchase runs and shared preferences as JSON; no tokens or credentials (HA ingress only)
+      security: []
+      responses: { "200": { description: JSON attachment } }
