@@ -13,6 +13,22 @@ Home Assistant add-on that acts as the central server for the [assistente-compra
 - Continente credentials stored only on the server; never completes checkout or payment.
 - Multi-language ready: the add-on web page ships in European Portuguese (default), with all user-facing strings in i18n files and no hardcoded text, so new languages can be added without code changes.
 
+## Repository layout
+
+- `continente_mcp/`: the add-on (Debian trixie base, Node.js 22, `continentept-mcp` pinned, Playwright Chromium headless shell baked into the image).
+- `continente_mcp/rootfs/opt/smoke/`: headless smoke test that calls the read-only `search_products` tool. It never touches the cart.
+- `.github/workflows/build.yaml`: builds for `aarch64` and `amd64` and runs the smoke test.
+- `docs/`: architecture and task list.
+
+Supported architectures: `aarch64` (e.g. Raspberry Pi 5) and `amd64`. `armv7` is not supported because Playwright has no Chromium build for it, and Alpine is not used because Chromium needs glibc.
+
+Run the smoke test locally:
+
+```sh
+docker build -t continente-mcp:test continente_mcp
+docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c continente-mcp:test smoke.mjs
+```
+
 ## Installation
 
 In Home Assistant, open the add-on store, add this repository (`https://github.com/jpch/continente-mcp-ha`) and install the add-on.

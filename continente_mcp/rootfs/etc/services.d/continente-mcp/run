@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bash
+# T1 placeholder service: the API server arrives in T2. Keeps the add-on alive and logs readiness.
+echo "[continente-mcp] skeleton ready (test_mode default: true)"
+exec sleep infinity
