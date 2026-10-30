@@ -38,6 +38,7 @@ describe('basket preview and apply', () => {
     const pv = (await t.preview(p.proposal_id)).json();
     expect(pv.items.find((i: any) => i.product_id === '4421406')).toMatchObject({ current: 2, add: 6, desired: 8 });
     expect(pv.estimated_cost).toBeTruthy();
+    expect(pv.problems).toEqual([]);
     const res = await t.apply(p.proposal_id, pv.preview_id);
     expect(res.statusCode).toBe(202);
     const j = await t.finished(res.json().job_id);
@@ -132,5 +133,24 @@ describe('basket preview and apply', () => {
     const j = await t.finished(id);
     expect(j.status).toBe('done');
     expect(t.shop.cart.get('4421406')).toBe(2);
+  });
+});
+
+describe('previewProblems', () => {
+  it('turns continentept-mcp 0.12 preview data (problems is a count) into a list', async () => {
+    const { previewProblems } = await import('../src/basket.js');
+    const data = {
+      lines: [
+        { productId: '1', name: 'Leite', availability: 'available', error: null },
+        { productId: '2', name: 'Manteiga', availability: 'unavailable', error: null },
+        { productId: '3', name: null, availability: null, error: { code: 'quantity_below_minimum', message: 'x', retryable: false } },
+      ],
+      estimatedCost: null, estimated: false, problems: 2,
+    };
+    expect(previewProblems(data)).toEqual([
+      { product_id: '2', name: 'Manteiga', availability: 'unavailable', error_key: null },
+      { product_id: '3', name: null, availability: null, error_key: 'error.quantity_below_minimum' },
+    ]);
+    expect(previewProblems(undefined)).toEqual([]);
   });
 });

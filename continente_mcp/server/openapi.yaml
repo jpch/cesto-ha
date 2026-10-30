@@ -252,7 +252,7 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       requestBody: { content: { application/json: { schema: { type: object, properties: { mode: { type: string, enum: [merge, replace], default: merge } } } } } }
       responses:
-        "200": { description: "Preview {preview_id, mode, test_mode, items[{item_id, product_id, current, add, desired}], removed, estimated_cost, problems}" }
+        "200": { description: "Preview {preview_id, mode, test_mode, items[{item_id, product_id, name, current, add, desired}], removed[{productId, quantity}], estimated_cost ({currency, minorUnits} or null), problems[{product_id, name, availability, error_key}] (always a list)}" }
         "409": { description: "choices pending, nothing to apply, or session expired" }
   /basket/proposals/{id}/apply:
     post:
