@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-30
+
+### Fixed
+
+- Cart preview: `problems` is now always a list of `{product_id, name, availability, error_key}`. continentept-mcp 0.12 reports it as a number, which the add-on passed through, so the phone app could not read the preview ("O servidor enviou uma resposta que a app não percebe").
+
 ### Added
 
 - T14 installation report for the Home Assistant Pi (`docs/t14-pi-install.md`): installed 0.1.0 in test mode, health and entities verified, 35 MB idle.
