@@ -69,6 +69,16 @@ const MIGRATIONS: string[] = [
   );
   CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `,
+  `
+  CREATE TABLE proposals (
+    id TEXT PRIMARY KEY,
+    list_id INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+    created_by TEXT NOT NULL,
+    json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
