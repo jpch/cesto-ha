@@ -33,4 +33,28 @@ if (existsSync('/opt/server/dist/index.js')) {
   console.log(JSON.stringify({ api_health: health ?? null, unauthenticated_status: unauth }));
   if (!health || health.test_mode !== true || unauth !== 401) process.exit(1);
 }
+
+// Sign-in tooling (T7): virtual display + noVNC + a visible (headed) Chromium on that display.
+if (existsSync('/usr/bin/Xvnc')) {
+  const { createRequire } = await import('node:module');
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const xvnc = spawn('Xvnc', [':98', '-geometry', '1024x768', '-depth', '24', '-SecurityTypes', 'None', '-localhost', 'yes', '-rfbport', '5998'], { stdio: 'ignore' });
+  const ws = spawn('websockify', ['--web', '/usr/share/novnc', '127.0.0.1:16080', '127.0.0.1:5998'], { stdio: 'ignore' });
+  let novnc = 0;
+  for (let i = 0; i < 30 && novnc !== 200; i++) { await wait(300); novnc = await fetch('http://127.0.0.1:16080/vnc.html').then(r => r.status).catch(() => 0); }
+  let headed = false;
+  try {
+    const req = createRequire('/usr/local/lib/node_modules/continentept-mcp/package.json');
+    let pw; try { pw = req('playwright'); } catch { pw = req('playwright-core'); }
+    const { chromium } = pw;
+    const browser = await chromium.launch({ headless: false, env: { ...process.env, DISPLAY: ':98' } });
+    const page = await browser.newPage();
+    await page.setContent('<p>ok</p>');
+    headed = (await page.textContent('p')) === 'ok';
+    await browser.close();
+  } catch (e) { console.log(String(e).slice(0, 500)); }
+  xvnc.kill(); ws.kill();
+  console.log(JSON.stringify({ novnc_status: novnc, headed_chromium: headed }));
+  if (novnc !== 200 || !headed) process.exit(1);
+}
 process.exit(0);

@@ -1,0 +1,12 @@
+body { font-family: system-ui, sans-serif; max-width: 860px; margin: 0 auto; padding: 1rem; color: #1c1c1c; }
+section { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+.banner { background: #fff4d6; border: 1px solid #e0b84c; padding: .5rem .75rem; border-radius: 6px; }
+.disclaimer { font-size: .9rem; color: #555; }
+label { display: block; margin: .4rem 0; }
+label span { display: inline-block; min-width: 8rem; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; }
+table { width: 100%; border-collapse: collapse; }
+td, th { text-align: left; padding: .3rem; border-bottom: 1px solid #eee; }
+iframe { width: 100%; height: 640px; border: 1px solid #ccc; margin-top: .5rem; }
+code { word-break: break-all; }
+.button, button { display: inline-block; padding: .4rem .8rem; margin: .2rem 0; cursor: pointer; }
