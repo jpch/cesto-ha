@@ -10,6 +10,7 @@ import type { LoginService } from './login.js';
 import { registerWeb } from './web.js';
 import { ListService, ValidationError, type ItemInput } from './lists.js';
 import { itemKey, type CatalogReader } from './catalog.js';
+import { ProductSearch, SearchError } from './search.js';
 import { HabitsService, PreferenceStore } from './habits.js';
 import { Matcher } from './matcher.js';
 import { parseList } from './parser.js';
@@ -42,6 +43,8 @@ export interface AppDeps {
   catalog?: CatalogReader;
   /** Runs an MCP job through the single-worker queue. */
   runJob?: <T>(job: () => Promise<T>) => Promise<T>;
+  /** Delays before each cart read-back after applying (default VERIFY_DELAYS_MS); tests use zeros. */
+  verifyDelaysMs?: number[];
   /** Cart reads plus the test-mode-guarded CartWriter. */
   cart?: CartApi;
   /** Emits `session` (boolean); waiting apply jobs resume on `true`. */
@@ -179,6 +182,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const lists = new ListService(deps.db);
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof PhotoError) return reply.code(error.status).send(apiError('invalid_request', error.key));
+    if (error instanceof SearchError) return reply.code(error.status).send(apiError(error.status === 409 ? 'conflict' : error.status === 502 ? 'upstream' : 'invalid_request', error.key));
     if (error instanceof ProposalError) return reply.code(error.status).send(apiError(error.status === 404 ? 'not_found' : error.status === 409 ? 'conflict' : 'invalid_request', error.key));
     if (error instanceof ValidationError || error instanceof CredentialsError) return reply.code(400).send(apiError('invalid_request', error.key));
     const status = (error as { statusCode?: number }).statusCode ?? 500;
@@ -264,7 +268,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     '/api/v1/basket/proposals/:id/lines/:item_id',
     async req => { const { proposals } = needCatalog(); return runJob(() => proposals.choose(req.params.id, Number(req.params.item_id), req.body ?? {})); });
 
-  const basket = proposals && deps.cart ? new BasketService(deps.db, lists, proposals, deps.cart, prefs, () => deps.config.testMode, runJob) : undefined;
+  const basket = proposals && deps.cart ? new BasketService(deps.db, lists, proposals, deps.cart, prefs, () => deps.config.testMode, runJob, deps.verifyDelaysMs) : undefined;
   deps.sessionEvents?.on('session', (valid: boolean) => { if (valid) basket?.resumeWaiting(); });
   const needBasket = () => { if (!basket) throw new ProposalError(503, 'error.mcp_unavailable'); return basket; };
 
@@ -277,6 +281,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.post<{ Params: { id: string }; Body: { preview_id?: unknown } }>('/api/v1/basket/proposals/:id/apply', async (req, reply) =>
     reply.code(202).send(needBasket().apply(req.params.id, req.body?.preview_id)));
+
+  app.post<{ Params: { id: string } }>('/api/v1/jobs/:id/retry-missing', async (req, reply) =>
+    reply.code(202).send(needBasket().retryMissing(req.params.id)));
 
   app.get<{ Params: { id: string } }>('/api/v1/jobs/:id', async (req, reply) =>
     needBasket().job(req.params.id) ?? reply.code(404).send(apiError('not_found', 'error.job_not_found')));
@@ -315,6 +322,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (!promotions) throw new ProposalError(503, 'error.mcp_unavailable');
     const list = lists.current();
     return runJob(() => promotions.suggest(lists.items(list.id)));
+  });
+
+  const search = catalog ? new ProductSearch(catalog) : undefined;
+  app.post<{ Body: { query?: unknown; barcode?: unknown } }>('/api/v1/catalog/search', async req => {
+    if (!search) throw new ProposalError(503, 'error.mcp_unavailable');
+    return runJob(() => search.search(req.body ?? {}));
   });
 
   app.get('/api/v1/habits', async () => needCatalog().habits.get());

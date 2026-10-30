@@ -1,22 +1,55 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Unit } from './parser.js';
 
+/**
+ * Continente product the user picked for an item (photo search, decision 58). The basket uses it as is,
+ * without matching again. A snapshot of the attributes shown when it was chosen.
+ */
+export interface LinkedProduct {
+  product_id: string; name: string; package_text: string | null; price: unknown; unit_price: unknown;
+  image_url: string | null; promotions: { kind: string; label: string }[]; barcode: string | null;
+}
 export type ItemState = 'pending' | 'in_cart' | 'not_bought';
 export interface Item {
   id: number; list_id: number; client_id: string | null; name: string; quantity: number | null; unit: Unit | null;
   note: string | null; category: string | null; added_by: string; state: ItemState; deleted: boolean;
   version: number; created_at: string; updated_at: string;
+  product: LinkedProduct | null;
 }
 export interface List { id: number; name: string; status: 'active' | 'archived'; created_at: string; updated_at: string }
-export interface ItemInput { name?: unknown; quantity?: unknown; unit?: unknown; note?: unknown; state?: unknown; category?: unknown; client_id?: unknown; updated_at?: unknown }
+export interface ItemInput { name?: unknown; quantity?: unknown; unit?: unknown; note?: unknown; state?: unknown; category?: unknown; client_id?: unknown; updated_at?: unknown; product?: unknown }
 
 export class ValidationError extends Error { constructor(public readonly key: string) { super(key); } }
 
 const UNITS = ['un', 'kg', 'g', 'l', 'ml'];
 const STATES = ['pending', 'in_cart', 'not_bought'];
-const COLS = 'id, list_id, client_id, name, quantity, unit, note, category, added_by, state, deleted, version, created_at, updated_at';
+const COLS = 'id, list_id, client_id, name, quantity, unit, note, category, added_by, state, deleted, version, created_at, updated_at, product_json';
 
-const toItem = (row: Record<string, unknown>): Item => ({ ...(row as unknown as Item), deleted: row.deleted === 1 });
+const toItem = (row: Record<string, unknown>): Item => {
+  const { product_json, ...rest } = row;
+  let product: LinkedProduct | null = null;
+  if (typeof product_json === 'string') { try { product = JSON.parse(product_json) as LinkedProduct; } catch { product = null; } }
+  return { ...(rest as unknown as Item), deleted: row.deleted === 1, product };
+};
+
+const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+const plainObject = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
+
+/** Validates and trims a linked product; null unlinks. */
+export function linkedProduct(input: unknown): LinkedProduct | null {
+  if (input === null) return null;
+  const o = plainObject(input) as Record<string, unknown> | null;
+  if (!o || typeof o.product_id !== 'string' || !/^\d{1,20}$/.test(o.product_id) || !str(o.name, 300)) throw new ValidationError('error.invalid_product');
+  const promotions = Array.isArray(o.promotions)
+    ? o.promotions.slice(0, 5).map(p => plainObject(p) as Record<string, unknown> | null).filter(p => p && typeof p.label === 'string')
+      .map(p => ({ kind: String(p!.kind ?? 'other').slice(0, 40), label: String(p!.label).slice(0, 120) }))
+    : [];
+  const barcode = typeof o.barcode === 'string' && /^\d{6,14}$/.test(o.barcode) ? o.barcode : null;
+  return {
+    product_id: o.product_id, name: str(o.name, 300)!, package_text: str(o.package_text, 120), price: plainObject(o.price), unit_price: plainObject(o.unit_price),
+    image_url: typeof o.image_url === 'string' && /^https:\/\//.test(o.image_url) ? o.image_url.slice(0, 500) : null, promotions, barcode,
+  };
+}
 
 /** Shared household list with a global change sequence for delta sync and last-write-wins edits. */
 export class ListService {
@@ -73,6 +106,11 @@ export class ListService {
         out[key] = input[key];
       }
     }
+    if (input.product !== undefined) {
+      const product = linkedProduct(input.product);
+      out.product_id = product?.product_id ?? null;
+      out.product_json = product ? JSON.stringify(product) : null;
+    }
     if (input.state !== undefined) {
       if (!STATES.includes(input.state as string)) throw new ValidationError('error.invalid_state');
       out.state = input.state;
@@ -91,10 +129,10 @@ export class ListService {
     }
     const t = this.now();
     const id = Number(this.db.prepare(
-      'INSERT INTO items (list_id, client_id, name, quantity, unit, note, category, added_by, state, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO items (list_id, client_id, name, quantity, unit, note, category, added_by, state, version, created_at, updated_at, product_id, product_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).run(list.id, clientId, fields.name as string, (fields.quantity ?? null) as number | null, (fields.unit ?? null) as string | null,
       (fields.note ?? null) as string | null, (fields.category ?? null) as string | null, addedBy, (fields.state ?? 'pending') as string,
-      this.nextVersion(), t, t).lastInsertRowid);
+      this.nextVersion(), t, t, (fields.product_id ?? null) as string | null, (fields.product_json ?? null) as string | null).lastInsertRowid);
     return { item: this.get(id)!, created: true };
   }
 
@@ -158,6 +196,6 @@ export class ListService {
   repeat(listId: number, addedBy: string): Item[] | undefined {
     const list = this.db.prepare("SELECT * FROM lists WHERE id = ? AND status = 'archived'").get(listId);
     if (!list) return undefined;
-    return this.items(listId).map(i => this.add({ name: i.name, quantity: i.quantity, unit: i.unit, note: i.note, category: i.category }, addedBy).item);
+    return this.items(listId).map(i => this.add({ name: i.name, quantity: i.quantity, unit: i.unit, note: i.note, category: i.category, product: i.product ?? undefined }, addedBy).item);
   }
 }

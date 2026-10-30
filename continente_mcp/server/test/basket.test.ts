@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { openDatabase } from '../src/db.js';
+import { cartQuantityOf, quantityInCart } from '../src/basket.js';
 import { CartWriter, ContinenteMcp, TestModeGuard } from '../src/mcp/continente.js';
 import { asLan, testConfig } from './helpers.js';
 import { fixtureCatalog } from './fixtures/catalog.js';
@@ -14,8 +15,8 @@ async function setup(testMode: boolean) {
   const config = testConfig({ testMode });
   const mcp = new ContinenteMcp(new TestModeGuard(shop, () => config.testMode));
   const writer = new CartWriter(mcp, () => config.testMode);
-  const { catalog } = fixtureCatalog({ frequent: ['4421406', '6600002'] });
-  const app = buildApp({ config, db, version: '0.1.0', catalog, sessionEvents: mcp, cart: {
+  const { catalog, calls } = fixtureCatalog({ frequent: ['4421406', '6600002'] });
+  const app = buildApp({ config, db, version: '0.1.0', catalog, sessionEvents: mcp, verifyDelaysMs: [0, 0, 0], cart: {
     getCart: () => mcp.getCart(), previewCartChanges: i => mcp.previewCartChanges(i),
     setQuantity: (id, q) => writer.setQuantity(id, q), clearCart: () => writer.clearCart() } });
   const token = (await app.inject({ method: 'POST', url: '/api/v1/admin/tokens', payload: { name: 'Ana', kind: 'phone' } })).json().token as string;
@@ -27,7 +28,7 @@ async function setup(testMode: boolean) {
   const apply = (id: string, preview_id: string) => app.inject({ method: 'POST', url: `/api/v1/basket/proposals/${id}/apply`, headers, payload: { preview_id } });
   const job = async (id: string) => (await app.inject({ url: `/api/v1/jobs/${id}`, headers })).json();
   const finished = async (id: string) => { let j: { status: string } = { status: '' }; await until(async () => !['queued', 'running'].includes((j = await job(id)).status)); return j as Record<string, any>; };
-  return { app, db, shop, mcp, headers, add, propose, preview, apply, finished };
+  return { app, db, shop, mcp, headers, add, propose, preview, apply, finished, calls, job };
 }
 
 describe('basket preview and apply', () => {
@@ -153,5 +154,116 @@ describe('previewProblems', () => {
       { product_id: '3', name: null, availability: null, error_key: 'error.quantity_below_minimum' },
     ]);
     expect(previewProblems(undefined)).toEqual([]);
+  });
+});
+
+describe('cart read-back (0.3.0, decisions 54-55)', () => {
+  it('reads continentept-mcp 0.12 cart quantities ({status, quantity:{value}}) instead of NaN', () => {
+    expect(cartQuantityOf({ status: 'known', quantity: { value: 6, unit: 'un' } })).toBe(6);
+    expect(cartQuantityOf({ status: 'unknown', value: 2, rawText: '2', reason: 'unrecognized_format' })).toBe(2);
+    expect(cartQuantityOf({ status: 'unknown', value: null, rawText: null, reason: 'missing' })).toBeNull();
+    expect(cartQuantityOf(3)).toBe(3);
+    expect(cartQuantityOf('1.5')).toBe(1.5);
+    expect(quantityInCart([{ productId: '1', quantity: 2 }, { productId: '1', quantity: 1 }], '1')).toBe(3);
+    expect(quantityInCart([{ productId: '1', quantity: null }], '1')).toBeNull();
+    expect(quantityInCart([], '1')).toBe(0);
+  });
+
+  it('five items all in the cart: done, nothing missing (regression for the false "needs attention")', async () => {
+    const t = await setup(false);
+    await t.add('leite', 6, 'un'); await t.add('arroz agulha', 1, 'kg'); await t.add('ovos', 1, 'un'); await t.add('iogurte natural', 4, 'un'); await t.add('arroz carolino', 1, 'un');
+    const p = await t.propose();
+    for (const l of p.lines.filter((l: any) => l.needs_choice)) await t.app.inject({ method: 'PATCH', url: `/api/v1/basket/proposals/${p.proposal_id}/lines/${l.item_id}`, headers: t.headers, payload: { product_id: l.options[0].product_id } });
+    const pv = (await t.preview(p.proposal_id)).json();
+    const j = await t.finished((await t.apply(p.proposal_id, pv.preview_id)).json().job_id);
+    expect(j.status).toBe('done');
+    expect(j.missing).toEqual([]);
+    expect(j.lines.every((l: any) => l.in_cart && typeof l.found_quantity === 'number')).toBe(true);
+    expect(j.progress).toMatchObject({ step: 'done', done: j.lines.length, total: j.lines.length });
+  });
+
+  it('waits and reads the cart again when it lags behind the writes', async () => {
+    const t = await setup(false);
+    t.shop.staleReads = 2;
+    await t.add('leite', 2, 'un'); await t.add('arroz agulha', 1, 'kg');
+    const p = await t.propose();
+    const pv = (await t.preview(p.proposal_id)).json();
+    const j = await t.finished((await t.apply(p.proposal_id, pv.preview_id)).json().job_id);
+    expect(j.status).toBe('done');
+    expect(j.progress.verify_attempt).toBe(3);
+    expect(t.shop.mutations()).toHaveLength(2);
+  });
+
+  it('names what is really missing and "retry missing" re-sends only those lines', async () => {
+    const t = await setup(false);
+    t.shop.dropFor.add('6600002');
+    await t.add('leite', 2, 'un'); await t.add('arroz agulha', 1, 'kg');
+    const p = await t.propose();
+    const pv = (await t.preview(p.proposal_id)).json();
+    const j = await t.finished((await t.apply(p.proposal_id, pv.preview_id)).json().job_id);
+    expect(j).toMatchObject({ status: 'needs_attention', message_key: 'basket.verify_mismatch' });
+    expect(j.missing).toEqual([{ item_id: expect.any(Number), product_id: '6600002', name: 'Arroz Agulha Continente', desired: 1, found_quantity: null }]);
+    expect(j.lines.find((l: any) => l.product_id === '4421406')).toMatchObject({ in_cart: true, found_quantity: 2 });
+    t.shop.dropFor.clear();
+    const before = t.shop.mutations().length;
+    const r = await t.app.inject({ method: 'POST', url: `/api/v1/jobs/${j.job_id}/retry-missing`, headers: t.headers });
+    expect(r.statusCode).toBe(202);
+    const j2 = await t.finished(r.json().job_id);
+    expect(j2).toMatchObject({ status: 'done', retry_of: j.job_id, missing: [] });
+    expect(t.shop.mutations().slice(before).map(c => c.args)).toEqual([{ productId: '6600002', quantity: 1 }]);
+    expect((await t.app.inject({ method: 'POST', url: `/api/v1/jobs/${j2.job_id}/retry-missing`, headers: t.headers })).statusCode).toBe(409);
+  });
+
+  it('test mode: progress still reported and the real cart is never touched', async () => {
+    const t = await setup(true);
+    await t.add('leite', 2, 'un');
+    const p = await t.propose();
+    const pv = (await t.preview(p.proposal_id)).json();
+    const j = await t.finished((await t.apply(p.proposal_id, pv.preview_id)).json().job_id);
+    expect(j).toMatchObject({ status: 'simulated', progress: { step: 'done', done: 1, total: 1 } });
+    expect(t.shop.mutations()).toHaveLength(0);
+  });
+});
+
+describe('linked products (0.3.0, decision 58)', () => {
+  const linked = { product_id: '2210001', name: 'Leite UHT Meio Gordo Continente', package_text: '1 lt', price: { amount: { currency: 'EUR', minorUnits: 72 }, per: 'item' },
+    unit_price: { amount: { currency: 'EUR', minorUnits: 72 }, per: 'l' }, image_url: 'https://example.test/l.jpg', promotions: [{ kind: 'immediate_discount', label: '-15%' }], barcode: '5601234567890' };
+
+  it('stores the linked product on the item and the basket uses it without matching again', async () => {
+    const t = await setup(false);
+    const res = await t.app.inject({ method: 'POST', url: '/api/v1/lists/current/items', headers: t.headers, payload: { name: 'Mimosa leite', quantity: 2, unit: 'un', product: linked } });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().product).toMatchObject({ product_id: '2210001', barcode: '5601234567890', promotions: [{ label: '-15%' }] });
+    const p = await t.propose();
+    expect(p.lines[0]).toMatchObject({ needs_choice: false, quantity: 2, selected: { product_id: '2210001', reason: 'linked' } });
+    expect(t.calls.filter(c => c.tool === 'search_products' && c.arg === 'Mimosa leite')).toHaveLength(0);
+    const pv = (await t.preview(p.proposal_id)).json();
+    await t.finished((await t.apply(p.proposal_id, pv.preview_id)).json().job_id);
+    expect(t.shop.cart.get('2210001')).toBe(2);
+  });
+
+  it('can be unlinked with null and rejects invalid products', async () => {
+    const t = await setup(false);
+    const item = (await t.app.inject({ method: 'POST', url: '/api/v1/lists/current/items', headers: t.headers, payload: { name: 'leite', product: linked } })).json();
+    const un = await t.app.inject({ method: 'PATCH', url: `/api/v1/items/${item.id}`, headers: t.headers, payload: { product: null } });
+    expect(un.json().product).toBeNull();
+    const bad = await t.app.inject({ method: 'PATCH', url: `/api/v1/items/${item.id}`, headers: t.headers, payload: { product: { product_id: 'x', name: 'y' } } });
+    expect(bad.json().error.message_key).toBe('error.invalid_product');
+  });
+});
+
+describe('catalog search (0.3.0, decision 57)', () => {
+  it('searches by barcode then name and returns candidates with price, unit price and promotions; read-only', async () => {
+    const t = await setup(false);
+    const r = await t.app.inject({ method: 'POST', url: '/api/v1/catalog/search', headers: t.headers, payload: { query: 'Leite Meio Gordo', barcode: '5601234567890' } });
+    expect(r.statusCode).toBe(200);
+    const body = r.json();
+    expect(body.matched_by).toBe('name');
+    expect(body.candidates.length).toBeGreaterThan(1);
+    expect(body.candidates[0]).toHaveProperty('unit_price');
+    expect(body.candidates[0]).toHaveProperty('promotions');
+    expect(t.calls.filter(c => c.tool === 'search_products').map(c => c.arg)).toEqual(['5601234567890', 'Leite Meio Gordo']);
+    expect(t.shop.mutations()).toHaveLength(0);
+    expect((await t.app.inject({ method: 'POST', url: '/api/v1/catalog/search', headers: t.headers, payload: {} })).statusCode).toBe(400);
   });
 });
