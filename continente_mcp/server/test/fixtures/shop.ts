@@ -22,7 +22,7 @@ export class FakeShop implements McpTransport {
       case 'preview_cart_changes': {
         const wanted = args.items as { productId: string; quantity: number }[];
         const cost = wanted.reduce((s, w) => s + (PRODUCTS.find(p => p.productId === w.productId)?.price?.amount.minorUnits ?? 0) * w.quantity, 0);
-        return { status: 'success', data: { lines: wanted.map(w => ({ productId: w.productId, current: this.cart.get(w.productId) ?? 0, change: w.quantity - (this.cart.get(w.productId) ?? 0) })), estimatedCost: { currency: 'EUR', minorUnits: cost }, problems: [] } };
+        return { status: 'success', data: { lines: wanted.map(w => ({ productId: w.productId, availability: 'available', error: null, current: this.cart.get(w.productId) ?? 0, change: w.quantity - (this.cart.get(w.productId) ?? 0) })), estimatedCost: { currency: 'EUR', minorUnits: cost }, estimated: false, problems: 0 } };
       }
       case 'set_cart_item_quantity': {
         const id = String(args.productId);

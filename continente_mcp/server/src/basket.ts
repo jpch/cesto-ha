@@ -19,7 +19,25 @@ interface CartItem { productId: string; quantity: number }
 export interface Preview {
   preview_id: string; mode: Mode; created_at: string; test_mode: boolean;
   items: { item_id: number; product_id: string; name: string; current: number; add: number; desired: number }[];
-  removed: CartItem[]; estimated_cost: unknown; problems: unknown[];
+  removed: CartItem[]; estimated_cost: unknown; problems: PreviewProblem[];
+}
+/** A line continentept-mcp would refuse, or whose product is not available. */
+export interface PreviewProblem { product_id: string; name: string | null; availability: string | null; error_key: string | null }
+
+/**
+ * continentept-mcp's `preview_cart_changes` reports `problems` as a count and the details on
+ * each line; the API always returns a list (the phone app parses it as one).
+ */
+export function previewProblems(data: Record<string, unknown> | undefined): PreviewProblem[] {
+  const lines = Array.isArray(data?.lines) ? (data!.lines as Record<string, unknown>[]) : [];
+  return lines
+    .filter(l => l && (l.error != null || (l.availability != null && l.availability !== 'available')))
+    .map(l => ({
+      product_id: String(l.productId ?? ''),
+      name: typeof l.name === 'string' ? l.name : null,
+      availability: typeof l.availability === 'string' ? l.availability : null,
+      error_key: l.error && typeof (l.error as { code?: unknown }).code === 'string' ? `error.${(l.error as { code: string }).code}` : null,
+    }));
 }
 export type JobStatus = 'queued' | 'running' | 'waiting_session' | 'done' | 'simulated' | 'needs_attention' | 'failed';
 export interface JobLine { item_id: number; product_id: string; desired: number; outcome: 'pending' | 'confirmed' | 'not_applied' | 'unknown' | 'simulated'; in_cart: boolean | null }
@@ -77,7 +95,7 @@ export class BasketService {
     const preview: Preview = {
       preview_id: randomUUID(), mode, created_at: new Date().toISOString(), test_mode: this.testMode(), items,
       removed: mode === 'replace' ? current.filter(c => !totals.has(c.productId)) : [],
-      estimated_cost: res.data?.estimatedCost ?? null, problems: (res.data?.problems as unknown[]) ?? [],
+      estimated_cost: res.data?.estimatedCost ?? null, problems: previewProblems(res.data as Record<string, unknown> | undefined),
     };
     (p as Proposal & { preview?: Preview }).preview = preview;
     this.proposals.save(p);
