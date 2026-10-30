@@ -1,5 +1,5 @@
 name: Continente MCP
-version: "0.1.1"
+version: "0.1.2"
 slug: continente_mcp
 description: Shared shopping list and Continente.pt basket builder (unofficial MCP). Never checks out or pays.
 url: https://github.com/jpch/continente-mcp-ha
