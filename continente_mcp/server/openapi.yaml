@@ -205,3 +205,44 @@ paths:
       summary: Download lists with items, purchase runs and shared preferences as JSON; no tokens or credentials (HA ingress only)
       security: []
       responses: { "200": { description: JSON attachment } }
+  /basket/proposals:
+    post:
+      summary: Match the pending items of the current list to Continente products (preference > frequent > favourite > search). Read-only on the account.
+      requestBody: { content: { application/json: { schema: { type: object, properties: { item_ids: { type: array, items: { type: integer } } } } } } }
+      responses:
+        "201": { description: "Proposal {proposal_id, list_id, lines[]}; each line has selected, options (2-4 for generic items, up to 3 alternatives when out of stock), unavailable, needs_choice, quantity, quantity_basis (units|packs|weighed_pieces|weight|default), promo, skipped, error" }
+        "409": { description: nothing pending to match }
+        "503": { description: MCP not available }
+  /basket/proposals/{id}:
+    get:
+      summary: Get a stored proposal
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: proposal }, "404": { description: not found } }
+  /basket/proposals/{id}/lines/{item_id}:
+    patch:
+      summary: Choose a product, change the cart quantity, or skip a line
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: item_id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { product_id: { type: string }, quantity: { type: number }, skip: { type: boolean } } } } } }
+      responses: { "200": { description: updated proposal }, "400": { description: invalid }, "404": { description: not found } }
+  /preferences:
+    get:
+      summary: Shared household product preferences, by normalised item key
+      responses: { "200": { description: "{preferences: [{item_key, product_id, quantity, updated_by, updated_at}]}" } }
+  /preferences/{item_key}:
+    put:
+      summary: Set the preferred product for an item name (shared by all users)
+      parameters: [{ name: item_key, in: path, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [product_id], properties: { product_id: { type: string }, quantity: { type: number, nullable: true } } } } } }
+      responses: { "200": { description: preference }, "400": { description: invalid } }
+    delete:
+      summary: Forget a preference
+      parameters: [{ name: item_key, in: path, required: true, schema: { type: string } }]
+      responses: { "204": { description: removed }, "404": { description: not found } }
+  /habits:
+    get:
+      summary: Cached purchase habits (frequently bought + favourites, refreshed every 24 h)
+      responses: { "200": { description: habits } }
+  /habits/refresh:
+    post:
+      summary: Refresh purchase habits from the account now (read-only calls)
+      responses: { "200": { description: habits } }

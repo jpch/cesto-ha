@@ -13,6 +13,10 @@ Home Assistant add-on that acts as the central server for the [assistente-compra
 - Continente credentials stored only on the server; never completes checkout or payment.
 - Multi-language ready: the add-on web page ships in European Portuguese (default), with all user-facing strings in i18n files and no hardcoded text, so new languages can be added without code changes.
 
+## Product matching
+
+`POST /api/v1/basket/proposals` turns the pending list items into Continente products, read-only on the account. For each item the server tries, in order: the household's shared preference for that item name, the products you buy most often, your favourites, then a catalogue search. Generic names ("iogurtes") return 2–4 options to choose from; when the usual product is out of stock the line shows it as `unavailable` with up to 3 available alternatives. Quantities are converted to what the cart needs (1,5 kg of rice in 1 kg packs → 2; 1 kg of apples sold per piece → 5 pieces). A choice made on one phone (`PUT /api/v1/preferences/{item}`) is reused by everyone next time.
+
 ## Repository layout
 
 - `continente_mcp/`: the add-on (Debian trixie base, Node.js 22, `continentept-mcp` pinned, Playwright Chromium baked into the image, plus Xvnc/noVNC for the sign-in window).
