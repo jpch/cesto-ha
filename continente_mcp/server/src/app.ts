@@ -9,7 +9,11 @@ import { exportData } from './export.js';
 import type { LoginService } from './login.js';
 import { registerWeb } from './web.js';
 import { ListService, ValidationError, type ItemInput } from './lists.js';
+import { itemKey, type CatalogReader } from './catalog.js';
+import { HabitsService, PreferenceStore } from './habits.js';
+import { Matcher } from './matcher.js';
 import { parseList } from './parser.js';
+import { ProposalError, ProposalService } from './proposals.js';
 
 declare module 'fastify' {
   interface FastifyRequest { principal?: TokenRecord }
@@ -29,6 +33,10 @@ export interface AppDeps {
   onCredentialsChanged?: () => void;
   /** Called after a successful write to the shared list (HA sensors). */
   onListChanged?: () => void;
+  /** Read-only Continente catalogue (ContinenteMcp); matching routes return 503 without it. */
+  catalog?: CatalogReader;
+  /** Runs an MCP job through the single-worker queue. */
+  runJob?: <T>(job: () => Promise<T>) => Promise<T>;
   webDir?: string;
   vncPort?: number;
 }
@@ -140,6 +148,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const lists = new ListService(deps.db);
   app.setErrorHandler((error, _req, reply) => {
+    if (error instanceof ProposalError) return reply.code(error.status).send(apiError(error.status === 404 ? 'not_found' : error.status === 409 ? 'conflict' : 'invalid_request', error.key));
     if (error instanceof ValidationError || error instanceof CredentialsError) return reply.code(400).send(apiError('invalid_request', error.key));
     const status = (error as { statusCode?: number }).statusCode ?? 500;
     if (status < 500) return reply.code(status).send(apiError('invalid_request', 'error.invalid_request'));
@@ -199,6 +208,47 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (!items) return reply.code(404).send(apiError('not_found', 'error.list_not_found'));
     return { items, version: lists.currentVersion() };
   });
+
+  // --- Matching, habits and shared preferences ---
+  const prefs = new PreferenceStore(deps.db);
+  const runJob = deps.runJob ?? (<T>(job: () => Promise<T>) => job());
+  const catalog = deps.catalog;
+  const habits = catalog ? new HabitsService(deps.db, catalog) : undefined;
+  const proposals = catalog && habits ? new ProposalService(deps.db, lists, catalog, new Matcher(catalog, prefs), habits) : undefined;
+  const needCatalog = () => { if (!proposals || !habits) throw new ProposalError(503, 'error.mcp_unavailable'); return { proposals, habits }; };
+
+  app.post<{ Body: { item_ids?: unknown } }>('/api/v1/basket/proposals', async (req, reply) => {
+    const ids = req.body?.item_ids;
+    if (ids !== undefined && (!Array.isArray(ids) || !ids.every(Number.isInteger))) return reply.code(400).send(apiError('invalid_request', 'error.invalid_request'));
+    const { proposals } = needCatalog();
+    return reply.code(201).send(await runJob(() => proposals.create(req.principal!.name, ids as number[] | undefined)));
+  });
+
+  app.get<{ Params: { id: string } }>('/api/v1/basket/proposals/:id', async (req, reply) => {
+    const p = needCatalog().proposals.get(req.params.id);
+    return p ?? reply.code(404).send(apiError('not_found', 'error.proposal_not_found'));
+  });
+
+  app.patch<{ Params: { id: string; item_id: string }; Body: { product_id?: unknown; quantity?: unknown; skip?: unknown } }>(
+    '/api/v1/basket/proposals/:id/lines/:item_id',
+    async req => { const { proposals } = needCatalog(); return runJob(() => proposals.choose(req.params.id, Number(req.params.item_id), req.body ?? {})); });
+
+  app.get('/api/v1/preferences', async () => ({ preferences: prefs.list() }));
+
+  app.put<{ Params: { key: string }; Body: { product_id?: unknown; quantity?: unknown } }>('/api/v1/preferences/:key', async (req, reply) => {
+    const { product_id, quantity } = req.body ?? {};
+    const key = itemKey(req.params.key);
+    if (!key || typeof product_id !== 'string' || !/^\d{1,20}$/.test(product_id) || (quantity != null && (typeof quantity !== 'number' || !(quantity > 0))))
+      return reply.code(400).send(apiError('invalid_request', 'error.invalid_preference'));
+    return prefs.set(key, product_id, (quantity as number | null | undefined) ?? null, req.principal!.name);
+  });
+
+  app.delete<{ Params: { key: string } }>('/api/v1/preferences/:key', async (req, reply) =>
+    prefs.remove(itemKey(req.params.key)) ? reply.code(204).send() : reply.code(404).send(apiError('not_found', 'error.preference_not_found')));
+
+  app.get('/api/v1/habits', async () => needCatalog().habits.get());
+
+  app.post('/api/v1/habits/refresh', async () => { const { habits } = needCatalog(); return runJob(() => habits.refresh()); });
 
   return app;
 }
