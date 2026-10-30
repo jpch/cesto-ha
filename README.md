@@ -98,6 +98,8 @@ cd continente_mcp/server && npm ci && npm test
 
 ## Installation
 
+A tested installation on a Raspberry Pi 5 (HA OS 18.2) is described in [docs/t14-pi-install.md](docs/t14-pi-install.md).
+
 In Home Assistant, open the add-on store, add this repository (`https://github.com/jpch/continente-mcp-ha`) and install the add-on. Home Assistant pulls a prebuilt image (`ghcr.io/jpch/{arch}-continente-mcp`, aarch64 and amd64) published by CI on every push to `main` and on `v*` tags, so nothing is built on the device.
 
 Warning: uses an unofficial MCP, not affiliated with Continente.
