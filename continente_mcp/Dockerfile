@@ -24,13 +24,18 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw \
     CONTINENTE_SIGN_IN_WINDOW=0 \
     NODE_ENV=production
 
+# Full Chromium (headless shell + headed browser for the sign-in window), plus the on-demand
+# sign-in display: TigerVNC's Xvnc, websockify and noVNC (served through HA ingress).
 RUN npm install -g "continentept-mcp@${CONTINENTEPT_MCP_VERSION}" \
  && cd /usr/local/lib/node_modules/continentept-mcp \
- && npx playwright install --with-deps --only-shell chromium \
+ && npx playwright install --with-deps chromium \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends tigervnc-standalone-server websockify novnc \
  && rm -rf /var/lib/apt/lists/* /root/.npm /tmp/*
 
 COPY rootfs /
 COPY --from=server /src/dist /opt/server/dist
 COPY --from=server /src/node_modules /opt/server/node_modules
 COPY --from=server /src/package.json /src/openapi.yaml /opt/server/
+COPY --from=server /src/web /opt/server/web
 RUN cd /opt/smoke && npm ci --omit=dev && rm -rf /root/.npm
