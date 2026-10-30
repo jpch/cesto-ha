@@ -61,6 +61,19 @@ Open the add-on from the Home Assistant sidebar ("Open web UI"). The page is in 
 - Tokens: create (shown once), list and revoke phone/app tokens.
 - Export: downloads lists, items, purchase runs and shared preferences as JSON (no tokens or credentials).
 
+### Home Assistant entities
+
+Published through the Supervisor (`homeassistant_api`), refreshed every minute, after list changes and on session changes:
+
+| Entity | State |
+| --- | --- |
+| `sensor.continente_server_status` | `online`, or `test_mode` while test mode is on (attributes: version, queue length) |
+| `binary_sensor.continente_session_valid` | `on` / `off` / `unknown` |
+| `sensor.continente_list_items` | Pending items in the current list (attribute: total items) |
+| `sensor.continente_last_sync` | Time of the last list change |
+
+When the Continente session expires, a persistent notification links to the add-on page to sign in again; it is dismissed once the session is valid. These entities are created by the add-on (no `unique_id`), so they reappear after a Home Assistant restart within a minute.
+
 Run the server tests locally:
 
 ```sh
