@@ -14,6 +14,8 @@ import { HabitsService, PreferenceStore } from './habits.js';
 import { Matcher } from './matcher.js';
 import { parseList } from './parser.js';
 import { ProposalError, ProposalService } from './proposals.js';
+import { BasketService, type CartApi } from './basket.js';
+import type { EventEmitter } from 'node:events';
 
 declare module 'fastify' {
   interface FastifyRequest { principal?: TokenRecord }
@@ -37,6 +39,10 @@ export interface AppDeps {
   catalog?: CatalogReader;
   /** Runs an MCP job through the single-worker queue. */
   runJob?: <T>(job: () => Promise<T>) => Promise<T>;
+  /** Cart reads plus the test-mode-guarded CartWriter. */
+  cart?: CartApi;
+  /** Emits `session` (boolean); waiting apply jobs resume on `true`. */
+  sessionEvents?: EventEmitter;
   webDir?: string;
   vncPort?: number;
 }
@@ -232,6 +238,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.patch<{ Params: { id: string; item_id: string }; Body: { product_id?: unknown; quantity?: unknown; skip?: unknown } }>(
     '/api/v1/basket/proposals/:id/lines/:item_id',
     async req => { const { proposals } = needCatalog(); return runJob(() => proposals.choose(req.params.id, Number(req.params.item_id), req.body ?? {})); });
+
+  const basket = proposals && deps.cart ? new BasketService(deps.db, lists, proposals, deps.cart, prefs, () => deps.config.testMode, runJob) : undefined;
+  deps.sessionEvents?.on('session', (valid: boolean) => { if (valid) basket?.resumeWaiting(); });
+  const needBasket = () => { if (!basket) throw new ProposalError(503, 'error.mcp_unavailable'); return basket; };
+
+  app.post<{ Params: { id: string }; Body: { mode?: unknown } }>('/api/v1/basket/proposals/:id/preview', async (req, reply) => {
+    const mode = req.body?.mode ?? 'merge';
+    if (mode !== 'merge' && mode !== 'replace') return reply.code(400).send(apiError('invalid_request', 'error.invalid_mode'));
+    const b = needBasket();
+    return runJob(() => b.preview(req.params.id, mode));
+  });
+
+  app.post<{ Params: { id: string }; Body: { preview_id?: unknown } }>('/api/v1/basket/proposals/:id/apply', async (req, reply) =>
+    reply.code(202).send(needBasket().apply(req.params.id, req.body?.preview_id)));
+
+  app.get<{ Params: { id: string } }>('/api/v1/jobs/:id', async (req, reply) =>
+    needBasket().job(req.params.id) ?? reply.code(404).send(apiError('not_found', 'error.job_not_found')));
 
   app.get('/api/v1/preferences', async () => ({ preferences: prefs.list() }));
 

@@ -61,6 +61,13 @@ const app = buildApp({
   onListChanged: publishHa,
   catalog: mcp,
   runJob: job => queue.run(job),
+  cart: {
+    getCart: () => mcp.getCart(),
+    previewCartChanges: items => mcp.previewCartChanges(items),
+    setQuantity: (productId, quantity) => cartWriter.setQuantity(productId, quantity),
+    clearCart: () => cartWriter.clearCart(),
+  },
+  sessionEvents: mcp,
   config, db, version, credentials, login, checkSession,
   queueLength: () => queue.length,
   sessionValid: () => mcp.sessionValid,
