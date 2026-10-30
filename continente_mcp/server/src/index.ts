@@ -59,6 +59,8 @@ if (ha) { publishHa(); setInterval(publishHa, 60_000).unref(); }
 
 const app = buildApp({
   onListChanged: publishHa,
+  catalog: mcp,
+  runJob: job => queue.run(job),
   config, db, version, credentials, login, checkSession,
   queueLength: () => queue.length,
   sessionValid: () => mcp.sessionValid,
