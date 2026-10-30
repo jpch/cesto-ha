@@ -61,5 +61,8 @@
   "ha.list_items": "Shopping list items",
   "ha.last_sync": "Shopping list last sync",
   "ha.session_expired.title": "Continente session expired",
-  "ha.session_expired.message": "The Continente session expired. Lists wait until you sign in again on the [add-on page]({url})."
+  "ha.session_expired.message": "The Continente session expired. Lists wait until you sign in again on the [add-on page]({url}).",
+  "error.remote_forbidden": "Not available away from home: only the shopping list can be used through Home Assistant.",
+  "error.ai_failed": "The AI provider failed; showing Continente promotions found by search.",
+  "error.admin_only": "Only Home Assistant administrators can open this page."
 }
