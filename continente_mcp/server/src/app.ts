@@ -15,6 +15,7 @@ import { Matcher } from './matcher.js';
 import { parseList } from './parser.js';
 import { ProposalError, ProposalService } from './proposals.js';
 import { BasketService, type CartApi } from './basket.js';
+import { createProvider, PhotoError, PhotoService, type PhotoInput } from './vision.js';
 import type { EventEmitter } from 'node:events';
 
 declare module 'fastify' {
@@ -154,6 +155,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const lists = new ListService(deps.db);
   app.setErrorHandler((error, _req, reply) => {
+    if (error instanceof PhotoError) return reply.code(error.status).send(apiError('invalid_request', error.key));
     if (error instanceof ProposalError) return reply.code(error.status).send(apiError(error.status === 404 ? 'not_found' : error.status === 409 ? 'conflict' : 'invalid_request', error.key));
     if (error instanceof ValidationError || error instanceof CredentialsError) return reply.code(400).send(apiError('invalid_request', error.key));
     const status = (error as { statusCode?: number }).statusCode ?? 500;
@@ -255,6 +257,21 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.get<{ Params: { id: string } }>('/api/v1/jobs/:id', async (req, reply) =>
     needBasket().job(req.params.id) ?? reply.code(404).send(apiError('not_found', 'error.job_not_found')));
+
+  const photos = catalog ? new PhotoService(deps.config.dataDir, catalog, createProvider(deps.config.visionProvider)) : undefined;
+  const needPhotos = () => { if (!photos) throw new ProposalError(503, 'error.mcp_unavailable'); return photos; };
+
+  app.post<{ Body: PhotoInput }>('/api/v1/photos', { bodyLimit: 12 * 1024 * 1024 }, async req => {
+    const ph = needPhotos();
+    return runJob(() => ph.identify(req.body ?? {}));
+  });
+  app.get<{ Params: { id: string } }>('/api/v1/photos/:id/thumbnail', async (req, reply) => {
+    const t = needPhotos().thumbnail(req.params.id);
+    if (!t) return reply.code(404).send(apiError('not_found', 'error.photo_not_found'));
+    return reply.type(t[0] === 0xff ? 'image/jpeg' : 'image/png').send(t);
+  });
+  app.delete<{ Params: { id: string } }>('/api/v1/photos/:id', async (req, reply) =>
+    needPhotos().remove(req.params.id) ? reply.code(204).send() : reply.code(404).send(apiError('not_found', 'error.photo_not_found')));
 
   app.get('/api/v1/preferences', async () => ({ preferences: prefs.list() }));
 

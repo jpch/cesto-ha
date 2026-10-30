@@ -81,16 +81,16 @@ export class BasketService {
     };
     (p as Proposal & { preview?: Preview }).preview = preview;
     this.proposals.save(p);
-    // save() bumps updated_at; the preview is valid for exactly this version.
-    (p as Proposal & { preview_version?: string }).preview_version = p.updated_at;
+    // save() bumps the revision; the preview is valid for exactly this version.
+    (p as Proposal & { preview_version?: number }).preview_version = p.revision;
     this.db.prepare('UPDATE proposals SET json = ? WHERE id = ?').run(JSON.stringify(p), p.proposal_id);
     return preview;
   }
 
   apply(proposalId: string, previewId: unknown): Job {
-    const p = this.proposals.get(proposalId) as (Proposal & { preview?: Preview; preview_version?: string }) | undefined;
+    const p = this.proposals.get(proposalId) as (Proposal & { preview?: Preview; preview_version?: number }) | undefined;
     if (!p) throw new ProposalError(404, 'error.proposal_not_found');
-    if (!p.preview || p.preview.preview_id !== previewId || p.preview_version !== p.updated_at) throw new ProposalError(409, 'error.preview_stale');
+    if (!p.preview || p.preview.preview_id !== previewId || p.preview_version !== p.revision) throw new ProposalError(409, 'error.preview_stale');
     const pv = p.preview;
     const desired = new Map(pv.items.map(i => [i.product_id, i.desired]));
     const now = new Date().toISOString();
