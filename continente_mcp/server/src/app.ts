@@ -27,6 +27,8 @@ export interface AppDeps {
   checkSession?: () => Promise<boolean | null>;
   /** Called after the Continente account changes (the MCP process must restart to read it). */
   onCredentialsChanged?: () => void;
+  /** Called after a successful write to the shared list (HA sensors). */
+  onListChanged?: () => void;
   webDir?: string;
   vncPort?: number;
 }
@@ -55,6 +57,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const principal = match ? tokens.verify(match[1]!) : undefined;
     if (!principal) return reply.code(401).send(apiError('unauthorized', 'error.unauthorized'));
     req.principal = principal;
+  });
+
+  app.addHook('onResponse', async (req, reply) => {
+    const path = req.url.split('?')[0]!;
+    if (req.method !== 'GET' && reply.statusCode < 400 && /^\/api\/v1\/(lists|items)(\/|$)/.test(path) && !path.endsWith('/parse')) deps.onListChanged?.();
   });
 
   app.get('/api/v1/health', async () => ({
