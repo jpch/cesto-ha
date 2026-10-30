@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { buildApp } from '../src/app.js';
 import { openDatabase } from '../src/db.js';
@@ -64,9 +64,18 @@ describe('promotion suggestions', () => {
   });
 });
 
+const ADDON_CONFIG = new URL('../../config.yaml', import.meta.url);
+
 describe('version', () => {
-  it('health reports the add-on version from config.yaml (package.json kept in sync)', () => {
-    const addon = parse(readFileSync(new URL('../../config.yaml', import.meta.url), 'utf8')) as { version: string };
+  it('openapi.yaml documents the server version', () => {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+    const spec = parse(readFileSync(new URL('../openapi.yaml', import.meta.url), 'utf8')) as { info: { version: string } };
+    expect(spec.info.version).toBe(pkg.version);
+  });
+
+  // config.yaml is outside the Docker build context; this runs in the repository checkout.
+  it.skipIf(!existsSync(ADDON_CONFIG))('health reports the add-on version from config.yaml (package.json kept in sync)', () => {
+    const addon = parse(readFileSync(ADDON_CONFIG, 'utf8')) as { version: string };
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
     expect(pkg.version).toBe(addon.version);
   });
