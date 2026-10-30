@@ -5,6 +5,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-30
+
+### Fixed
+
+- Cart verification reported "needs attention" (e.g. "added 5, failed 0, some items are not in the cart") although everything was added: continentept-mcp 0.12 reports cart quantities as `{status, quantity: {value, unit}}`, which was read as NaN. Quantities are now parsed correctly (plain numbers still accepted), the shopping bag line is ignored, and lines are compared by product id and quantity.
+
+### Added
+
+- Cart read-back with retries: after the writes the cart is read up to 4 times (waiting 1, 2, 4 and 8 s) until every line is present, because the cart page can lag behind. Only lines that are really missing are reported, by name, in the job's new `missing` list.
+- `POST /api/v1/jobs/{id}/retry-missing` ("Try adding what is missing"): a new job that re-sends exact quantities only for the missing lines and reads the cart again. Merge mode, never clears; simulated in test mode.
+- Job progress for the phone's progress screen: `progress {step connect|clear|adding|verifying|done, done, total, current, verify_attempt}`; job lines now carry the product `name` and the `found_quantity` read back.
+- `POST /api/v1/catalog/search` (LAN only, read-only): search Continente by barcode, then by the composed name, returning up to 8 candidates with image, name, size, price, price per kg/l (`unit_price`) and promotions.
+- Linked products: a list item can carry `product` (product id plus the attributes shown when it was picked). The basket uses that product as is (reason `linked`), without matching again; when it is out of stock, alternatives are offered as before. `product: null` unlinks. Database migration 3 adds the columns.
+
+
 ## [0.2.0] - 2026-10-30
 
 ### Added

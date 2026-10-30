@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Continente MCP add-on API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     HTTP API of the continente-mcp-ha add-on. Errors return a message key, never user-facing text.
 
@@ -97,6 +97,31 @@ components:
         version: { type: integer }
         created_at: { type: string }
         updated_at: { type: string }
+        product: { oneOf: [{ $ref: "#/components/schemas/LinkedProduct" }, { type: "null" }] }
+    LinkedProduct:
+      type: object
+      description: "Continente product the user picked for this item (photo search). The basket uses it as is, without matching again (reason 'linked')."
+      required: [product_id, name]
+      properties:
+        product_id: { type: string, pattern: "^\\d{1,20}$" }
+        name: { type: string, maxLength: 300 }
+        package_text: { type: [string, "null"] }
+        price: { type: [object, "null"], description: "{amount{currency,minorUnits}, per}" }
+        unit_price: { type: [object, "null"], description: "{amount{currency,minorUnits}, per kg|l}" }
+        image_url: { type: [string, "null"], description: https only }
+        promotions: { type: array, maxItems: 5, items: { type: object, properties: { kind: { type: string }, label: { type: string } } } }
+        barcode: { type: [string, "null"], pattern: "^\\d{6,14}$" }
+    SearchCandidate:
+      type: object
+      properties:
+        product_id: { type: string }
+        name: { type: string }
+        package_text: { type: [string, "null"] }
+        price: { type: [object, "null"] }
+        unit_price: { type: [object, "null"] }
+        image_url: { type: [string, "null"] }
+        availability: { type: string }
+        promotions: { type: array, items: { type: object } }
     ItemInput:
       type: object
       properties:
@@ -108,6 +133,7 @@ components:
         state: { type: string, enum: [pending, in_cart, not_bought] }
         client_id: { type: string, description: Client-generated id; repeated creates with the same id are idempotent }
         updated_at: { type: string, format: date-time, description: "Client edit time for last-write-wins; older than the stored value = ignored; future times are clamped to server time" }
+        product: { oneOf: [{ $ref: "#/components/schemas/LinkedProduct" }, { type: "null" }], description: "Link a Continente product (null unlinks)" }
     List:
       type: object
       properties:
@@ -335,9 +361,33 @@ paths:
       responses: { "202": { description: job }, "409": { description: "preview missing or stale (proposal changed since)" } }
   /jobs/{id}:
     get:
-      summary: "Apply job: status queued|running|waiting_session|done|simulated|needs_attention|failed; lines[{outcome confirmed|not_applied|unknown|simulated, in_cart}], cart_after, message_key. An unknown outcome stops the job (no replay) and reads the cart."
+      summary: "Apply job: status queued|running|waiting_session|done|simulated|needs_attention|failed; lines[{item_id, product_id, name, desired, outcome confirmed|not_applied|unknown|simulated, in_cart, found_quantity}], progress{step connect|clear|adding|verifying|done, done, total, current (product name), verify_attempt}, missing[{item_id, product_id, name, desired, found_quantity}], retry_of, cart_after, message_key. After the writes the cart is read back up to 4 times (waiting 1, 2, 4, 8 s) until every line is present with at least its quantity; an unknown outcome stops the job (no replay) and reads the cart."
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: job }, "404": { description: not found } }
+  /jobs/{id}/retry-missing:
+    post:
+      summary: "Try adding what is missing: a new job (merge, set_cart_item_quantity with exact totals) for the missing lines of a needs_attention job, then read back again. Test mode simulates. Never checks out or pays. LAN only."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "202": { description: job (retry_of = the original job) }, "404": { description: not found }, "409": { description: "nothing to retry (error.nothing_to_retry)" } }
+  /catalog/search:
+    post:
+      summary: "Search Continente for a product read from a photo (user-triggered; may take a few seconds). Barcode first, then the composed name. Read-only (search_products), never touches the cart. LAN only."
+      requestBody: { content: { application/json: { schema: { type: object, properties: { query: { type: string, maxLength: 120 }, barcode: { type: string, pattern: "^\\d{6,14}$" } } } } } }
+      responses:
+        "200":
+          description: candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query: { type: string }
+                  barcode: { type: [string, "null"] }
+                  matched_by: { type: [string, "null"], enum: [barcode, name, null] }
+                  candidates: { type: array, maxItems: 8, items: { $ref: "#/components/schemas/SearchCandidate" } }
+        "400": { description: "error.invalid_query / error.invalid_barcode" }
+        "409": { description: "error.session_expired" }
+        "503": { description: "error.mcp_unavailable" }
   /photos:
     post:
       summary: "Identify a product: barcode (EAN read on the phone) first, then packaging text (OCR on the phone), then the vision provider (only 'none' in v1, so the image is never sent anywhere). The original image is never stored; an optional thumbnail (JPEG/PNG, max 64 KB) is kept until deleted. Candidates are for adding to the list, never the cart."
