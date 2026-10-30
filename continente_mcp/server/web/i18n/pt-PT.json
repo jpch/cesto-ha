@@ -54,5 +54,11 @@
   "error.login_unavailable": "Início de sessão indisponível.",
   "error.invalid_token_request": "Indique um nome (até 60 caracteres) e o tipo.",
   "error.token_not_found": "Token não encontrado.",
-  "error.admin_ingress_only": "Disponível apenas através do Home Assistant."
+  "error.admin_ingress_only": "Disponível apenas através do Home Assistant.",
+  "ha.server_status": "Continente MCP",
+  "ha.session_valid": "Sessão Continente",
+  "ha.list_items": "Itens na lista de compras",
+  "ha.last_sync": "Última sincronização da lista",
+  "ha.session_expired.title": "Sessão Continente expirada",
+  "ha.session_expired.message": "A sessão no Continente expirou. As listas ficam em espera até voltar a iniciar sessão na [página do add-on]({url})."
 }
