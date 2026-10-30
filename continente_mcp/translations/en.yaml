@@ -1,0 +1,6 @@
+configuration:
+  test_mode:
+    name: Test mode
+    description: Runs everything, including the preview, but never changes the real Continente cart.
+  log_level:
+    name: Log level
