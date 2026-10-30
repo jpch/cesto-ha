@@ -246,3 +246,22 @@ paths:
     post:
       summary: Refresh purchase habits from the account now (read-only calls)
       responses: { "200": { description: habits } }
+  /basket/proposals/{id}/preview:
+    post:
+      summary: "Read-only preview: get_cart + preview_cart_changes. merge adds to the current cart quantities; replace lists what clear_cart would remove. Required before apply."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { mode: { type: string, enum: [merge, replace], default: merge } } } } } }
+      responses:
+        "200": { description: "Preview {preview_id, mode, test_mode, items[{item_id, product_id, current, add, desired}], removed, estimated_cost, problems}" }
+        "409": { description: "choices pending, nothing to apply, or session expired" }
+  /basket/proposals/{id}/apply:
+    post:
+      summary: "Apply the latest preview as a background job (set_cart_item_quantity with exact totals; clear_cart first for replace). In test mode nothing is sent and the job is 'simulated'. Never checks out or pays."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [preview_id], properties: { preview_id: { type: string } } } } } }
+      responses: { "202": { description: job }, "409": { description: "preview missing or stale (proposal changed since)" } }
+  /jobs/{id}:
+    get:
+      summary: "Apply job: status queued|running|waiting_session|done|simulated|needs_attention|failed; lines[{outcome confirmed|not_applied|unknown|simulated, in_cart}], cart_after, message_key. An unknown outcome stops the job (no replay) and reads the cart."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: job }, "404": { description: not found } }
