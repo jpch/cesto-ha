@@ -3,7 +3,7 @@ info:
   title: Cesto add-on API
   version: 1.0.0
   description: |
-    HTTP API of the continente-mcp-ha add-on. Errors return a message key, never user-facing text.
+    HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
     Two ways in:
     - LAN (at home): `http://<ha-host>:8099/api/v1`, add-on bearer token (`cesto_...`, one per device, created on the add-on page). Full API.
