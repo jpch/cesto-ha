@@ -3,7 +3,7 @@ import type { CatalogReader, Product, Promotion } from './catalog.js';
 import { thumbnailUrl } from './thumbnails.js';
 import type { AiClient } from './ai.js';
 import type { Item } from './lists.js';
-import { productsOf } from './mcp/upstream.js';
+import { productOf, productsOf } from './mcp/upstream.js';
 
 import { randomUUID } from 'node:crypto';
 
@@ -34,11 +34,27 @@ export interface PromotionSearch {
   result: PromotionsResult | null;
   error: { message_key: string } | null;
 }
+/** The product currently chosen for an item (from a proposal line), used as the unit-price basis. */
+export interface SelectedProduct { product_id: string; unit_price?: Product['unitPrice'] | null }
+/**
+ * 1.6.0+: one entry per searched item. `promotions` and `cheaper` are deduplicated, never contain the selected
+ * product, and never share a product. `cheaper` is compared with `basis`: the selected product's price per kg/l,
+ * or (no selection known) the first promotion's.
+ */
+export interface ItemPromotions {
+  item_id: number; item_name: string; query: string;
+  selected_product_id: string | null;
+  basis: { unit_price: NonNullable<Product['unitPrice']>; source: 'selected' | 'promotion' } | null;
+  promotions: PromoProduct[];
+  cheaper: PromoProduct[];
+}
 export interface PromotionsResult {
   source: 'ai' | 'search';
   provider: string;
   generated_at: string;
   suggestions: PromoSuggestion[];
+  /** 1.6.0+: one entry per searched item (see [ItemPromotions]). Older apps ignore it. */
+  items: ItemPromotions[];
   /** Message key when the AI provider was configured but failed and the search fallback was used. */
   ai_error: string | null;
 }
@@ -71,7 +87,7 @@ export function productType(query: string): string | null {
  * type word), any brand or size, promoted or not; same unit only (kg with kg, l with l); products without a
  * unit price are left out; strictly lower price per unit; cheapest first.
  */
-export function cheaperPerUnit(promo: Product, related: Product[], query: string): Product[] {
+export function cheaperPerUnit(promo: Pick<Product, 'productId' | 'unitPrice'>, related: Product[], query: string): Product[] {
   const base = promo.unitPrice;
   if (!base || base.amount.minorUnits <= 0) return [];
   const type = productType(query);
@@ -103,12 +119,15 @@ export class PromotionService {
     run?: <T>(job: () => Promise<T>) => Promise<T>;
     onItem?: (index: number, state: SearchItemState) => void;
     cancelled?: () => boolean;
+    /** Selected product per item id (from the proposal); the unit-price basis for `items[].cheaper`. */
+    selected?: Map<number, SelectedProduct>;
   } = {}): Promise<PromotionsResult> {
     const run = hooks.run ?? (<T>(job: () => Promise<T>) => job());
     const pending = PromotionService.pending(items);
     const seen = new Set<string>();
     const candidates: PromoSuggestion[] = [];
     const byQuery = new Map<string, Product[]>();
+    const perItem: ItemPromotions[] = [];
     for (const [index, item] of pending.entries()) {
       if (hooks.cancelled?.()) break;
       const state: SearchItemState = { item_id: item.id, item_name: item.name, status: 'searching', promos: 0, cheaper: 0 };
@@ -127,19 +146,54 @@ export class PromotionService {
         seen.add(p.productId); n++;
         const cheaper = cheaperPerUnit(p, all, query).map(toPromo);
         candidates.push({ item_id: item.id, item_name: item.name, query, product: toPromo(p), reason: null, cheaper });
-        state.cheaper = Math.max(state.cheaper, cheaper.length);
       }
+      const entry = await this.itemEntry(item, query, all, found, hooks.selected?.get(item.id) ?? null, run);
+      perItem.push(entry);
       state.promos = n;
+      state.cheaper = entry.cheaper.length;
       state.status = 'done';
       hooks.onItem?.(index, state);
     }
     const base = { provider: this.ai?.name ?? 'none', generated_at: new Date().toISOString() };
-    if (!this.ai || !candidates.length) return { ...base, source: 'search', suggestions: candidates, ai_error: null };
+    if (!this.ai || !candidates.length) return { ...base, source: 'search', suggestions: candidates, items: perItem, ai_error: null };
     try {
-      return { ...base, source: 'ai', suggestions: await this.rank(candidates), ai_error: null };
+      return { ...base, source: 'ai', suggestions: await this.rank(candidates), items: perItem, ai_error: null };
     } catch {
-      return { ...base, source: 'search', suggestions: candidates, ai_error: 'error.ai_failed' };
+      return { ...base, source: 'search', suggestions: candidates, items: perItem, ai_error: 'error.ai_failed' };
     }
+  }
+
+  /**
+   * One deduplicated block set per item: promotions (max [PER_ITEM], without the selected product) and products
+   * cheaper per kg/l than the selected product (or, without a selection, than the first promotion), never
+   * repeating a promotion. The selected product's unit price comes from the proposal, the search results, or
+   * a (cached) product read.
+   */
+  private async itemEntry(item: Item, query: string, all: Product[], found: Product[], selected: SelectedProduct | null,
+    run: <T>(job: () => Promise<T>) => Promise<T>): Promise<ItemPromotions> {
+    const selectedId = selected?.product_id ?? null;
+    const promos: Product[] = [];
+    for (const p of found) {
+      if (promos.length >= PER_ITEM) break;
+      if (p.productId === selectedId || promos.some(x => x.productId === p.productId)) continue;
+      promos.push(p);
+    }
+    let basis: ItemPromotions['basis'] = null;
+    if (selected) {
+      let unit = selected.unit_price ?? all.find(p => p.productId === selected.product_id)?.unitPrice ?? null;
+      if (!unit) {
+        const res = await run(() => this.catalog.getProduct(selected.product_id)).catch(() => null);
+        unit = (res && productOf(res)?.unitPrice) ?? null;
+      }
+      if (unit) basis = { unit_price: unit, source: 'selected' };
+    } else if (promos[0]?.unitPrice) {
+      basis = { unit_price: promos[0].unitPrice, source: 'promotion' };
+    }
+    const exclude = new Set([...(selectedId ? [selectedId] : []), ...promos.map(p => p.productId)]);
+    const cheaper = basis
+      ? cheaperPerUnit({ productId: selectedId ?? promos[0]?.productId ?? '', unitPrice: basis.unit_price }, all.filter(p => !exclude.has(p.productId)), query)
+      : [];
+    return { item_id: item.id, item_name: item.name, query, selected_product_id: selectedId, basis, promotions: promos.map(toPromo), cheaper: cheaper.map(toPromo) };
   }
 
   /** The AI may only choose among the searched candidates; unknown ids are dropped. */
@@ -179,7 +233,7 @@ export class PromotionSearches {
   }
   private readonly run: <T>(job: () => Promise<T>) => Promise<T>;
 
-  start(items: Item[]): PromotionSearch {
+  start(items: Item[], selected?: Map<number, SelectedProduct>): PromotionSearch {
     if (this.current?.status === 'running') return this.current;
     const pending = PromotionService.pending(items);
     const search: PromotionSearch = {
@@ -191,6 +245,7 @@ export class PromotionSearches {
     this.cancel = false;
     this.service.suggest(pending, {
       run: this.run,
+      selected,
       cancelled: () => this.cancel,
       onItem: (index, state) => { search.items[index] = { ...state }; search.done = search.items.filter(i => i.status === 'done').length; },
     }).then(result => {

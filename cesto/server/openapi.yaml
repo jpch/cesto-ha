@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.5.0
+  version: 1.6.0
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -392,13 +392,15 @@ paths:
         "503": { description: "Continente MCP unavailable (error.mcp_unavailable)" }
   /promotions/searches:
     post:
-      summary: "Start an async promotion search (1.4.0). Read-only (search_products only); LAN only. A request while one runs returns it."
+      summary: "Start an async promotion search (1.4.0). Read-only (search_products, plus a cached get_product for a selected product without a unit price); LAN only. A request while one runs returns it."
+      requestBody: { required: false, content: { application/json: { schema: { type: object, properties: { proposal_id: { type: string, description: "1.6.0+: optional proposal id; each line's selected product becomes the unit-price basis of result.items[].cheaper" } } } } } }
       responses:
         "202": { description: "{search_id, status: running|done|cancelled|failed, done, total, items: [{item_id, item_name, status: queued|searching|done, promos, cheaper}], result, error}" }
+        "400": { description: Invalid proposal_id }
         "503": { description: MCP not available }
   /promotions/searches/{id}:
     get:
-      summary: "Search progress; once done or cancelled, result has the /promotions shape and each suggestion has unit_price, discount_percent and cheaper[] (same type, any brand or size, same unit, strictly lower price per kg or l, cheapest first)."
+      summary: "Search progress; once done or cancelled, result has the /promotions shape and each suggestion has unit_price, discount_percent and cheaper[] (same type, any brand or size, same unit, strictly lower price per kg or l, cheapest first). 1.6.0+: result.items[] has one entry per item: {item_id, item_name, query, selected_product_id, basis: {unit_price, source: selected|promotion} | null, promotions[] (max 3, without the selected product), cheaper[] (max 5, cheaper per kg/l than basis, never a promotion or the selected product)}."
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: search }, "404": { description: not found } }
     delete:

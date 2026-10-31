@@ -9,6 +9,8 @@ export type Reason = 'linked' | 'preference' | 'frequent' | 'favorite' | 'search
 export interface Option {
   product_id: string; name: string; package_text: string | null; price: Product['price'] | null;
   availability: string; image_url: string | null; thumbnail_url: string | null; promotions: Product['promotions']; reason: Reason;
+  /** 1.6.0+: price per kg or l when the shop shows one. */
+  unit_price?: Product['unitPrice'] | null;
 }
 export interface PromoSuggestion { kind: 'multi_buy' | 'nth_unit_discount'; label: string; suggested_quantity: number }
 export interface Line {
@@ -35,6 +37,7 @@ export interface Line {
 const toOption = (p: Product, reason: Reason): Option => ({
   product_id: p.productId, name: p.name, package_text: p.packageText ?? null, price: p.price ?? null,
   availability: p.availability ?? 'unknown', image_url: p.imageUrl ?? null, thumbnail_url: thumbnailUrl(p.imageUrl), promotions: p.promotions ?? [], reason,
+  unit_price: p.unitPrice ?? null,
 });
 
 const toBase = (q: Qty | { value: number; unit: string }): { value: number; dim: 'mass' | 'volume' | 'count' } | null => {
