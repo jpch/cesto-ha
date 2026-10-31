@@ -1,0 +1,52 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "labels": [
+        {
+          "productId": "2000001",
+          "name": "Leite UHT Meio-Gordo",
+          "label": {
+            "regulatedName": "Leite UHT meio-gordo",
+            "ingredients": "Leite meio-gordo.",
+            "emphasised": [
+              "Leite"
+            ],
+            "allergenStatement": "Contém leite.",
+            "mayContain": null,
+            "storage": "Conservar em local fresco e seco.",
+            "netContent": {
+              "value": 1,
+              "unit": "l"
+            },
+            "issues": [],
+            "nutrition": {
+              "per": {
+                "value": 100,
+                "unit": "ml"
+              },
+              "nutrients": [
+                {
+                  "name": "Energia",
+                  "key": "energy_kj",
+                  "amount": 195,
+                  "unit": "kJ"
+                },
+                {
+                  "name": "Energia",
+                  "key": "energy_kcal",
+                  "amount": 46,
+                  "unit": "kcal"
+                }
+              ]
+            }
+          },
+          "error": null,
+          "status": "complete",
+          "missing": []
+        }
+      ]
+    }
+  }
+}

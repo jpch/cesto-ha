@@ -149,7 +149,7 @@ describe('previewProblems', () => {
       ],
       estimatedCost: null, estimated: false, problems: 2,
     };
-    expect(previewProblems(data)).toEqual([
+    expect(previewProblems({ status: 'success', data })).toEqual([
       { product_id: '2', name: 'Manteiga', availability: 'unavailable', error_key: null },
       { product_id: '3', name: null, availability: null, error_key: 'error.quantity_below_minimum' },
     ]);

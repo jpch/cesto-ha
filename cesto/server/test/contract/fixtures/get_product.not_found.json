@@ -1,0 +1,10 @@
+{
+  "result": {
+    "status": "error",
+    "error": {
+      "code": "not_found",
+      "message": "Product not found.",
+      "retryable": false
+    }
+  }
+}

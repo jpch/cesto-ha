@@ -1,5 +1,6 @@
 import type { CatalogReader, Product } from './catalog.js';
 import { thumbnailUrl } from './thumbnails.js';
+import { isNotAuthenticated, productsOf } from './mcp/upstream.js';
 
 export interface SearchCandidate {
   product_id: string; name: string; package_text: string | null; price: Product['price'] | null; unit_price: Product['unitPrice'] | null;
@@ -30,10 +31,10 @@ export class ProductSearch {
     const run = async (q: string) => {
       const res = await this.catalog.searchProducts({ query: q, limit: MAX, favoritesFirst: true });
       if (res.status === 'error') {
-        if (res.error?.code === 'not_authenticated') throw new SearchError(409, 'error.session_expired');
+        if (isNotAuthenticated(res)) throw new SearchError(409, 'error.session_expired');
         throw new SearchError(502, 'error.search_failed');
       }
-      return ((res.data?.products as Product[] | undefined) ?? []).filter(p => p.productId);
+      return productsOf(res);
     };
     if (barcode) {
       const byCode = await run(barcode).catch(e => { if (!query) throw e; return [] as Product[]; });

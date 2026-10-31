@@ -2,6 +2,7 @@ import { itemKey, tokens, type CatalogReader, type Product, type Qty } from './c
 import type { Habits, PreferenceStore } from './habits.js';
 import type { LinkedProduct } from './lists.js';
 import { thumbnailUrl } from './thumbnails.js';
+import { productOf, productsOf } from './mcp/upstream.js';
 
 export interface MatchItem { id: number; name: string; quantity: number | null; unit: string | null; product?: LinkedProduct | null }
 export type Reason = 'linked' | 'preference' | 'frequent' | 'favorite' | 'search';
@@ -105,7 +106,7 @@ export class Matcher {
 
     const search = await this.catalog.searchProducts({ query: item.name, limit: 10, favoritesFirst: true });
     if (search.status === 'error') { line.error = search.error?.code ?? 'search_failed'; }
-    const found = ((search.data?.products as Product[] | undefined) ?? []).filter(p => p.productId);
+    const found = productsOf(search);
     const frequentIds = new Map(habits.frequent.filter(f => f.productId).map((f, i) => [f.productId!, i]));
     const favoriteIds = new Set(habits.favorites.map(f => f.productId));
 
@@ -126,7 +127,7 @@ export class Matcher {
     let reason: Reason = 'search';
     if (pref) {
       const res = await this.catalog.getProduct(pref.product_id);
-      if (res.status !== 'error' && res.data) { chosen = res.data as unknown as Product; reason = 'preference'; }
+      { const got = productOf(res); if (got) { chosen = got; reason = 'preference'; } }
     }
     // 2-3. Frequent or favourite product among the matches.
     if (!chosen) {
@@ -163,7 +164,7 @@ export class Matcher {
 
   private async linked(line: Line, item: MatchItem, link: LinkedProduct): Promise<Line> {
     const res = await this.catalog.getProduct(link.product_id);
-    const fresh = res.status !== 'error' && res.data ? (res.data as unknown as Product) : null;
+    const fresh = productOf(res);
     // Keep the linked id even if the catalogue answers with something else or not at all.
     const product: Product = fresh && String(fresh.productId) === link.product_id ? fresh : {
       productId: link.product_id, name: link.name, packageText: link.package_text, price: (link.price as Product['price']) ?? null,
@@ -175,7 +176,7 @@ export class Matcher {
       line.unavailable = toOption(product, 'linked');
       const search = await this.catalog.searchProducts({ query: item.name, limit: 10, favoritesFirst: true });
       const words = tokens(item.name);
-      line.options = ((search.data?.products as Product[] | undefined) ?? [])
+      line.options = productsOf(search)
         .filter(p => p.productId && p.productId !== link.product_id && p.availability !== 'unavailable' && overlap(words, tokens(p.name)) > 0)
         .slice(0, 3).map(p => toOption(p, 'search'));
       return line;
@@ -192,7 +193,7 @@ export class Matcher {
     const weighed = (item.unit === 'kg' || item.unit === 'g') && p.price?.per === 'kg' && !p.saleRules;
     if (weighed) {
       const res = await this.catalog.getProduct(p.productId);
-      if (res.status !== 'error' && res.data) p = { ...p, ...(res.data as unknown as Product) };
+      { const got = productOf(res); if (got) p = { ...p, ...got }; }
     }
     const q = item.quantity == null && preferredQuantity ? { quantity: preferredQuantity, basis: 'units' as const } : cartQuantity(item, p);
     line.quantity = q.quantity;

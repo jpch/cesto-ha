@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import type { McpTransport } from './client.js';
 import { assertAllowedTool, isMutating, type MutatingTool, type ReadTool, type ToolResult } from './tools.js';
+import { isNotAuthenticated } from './upstream.js';
 
 export class MutationBlockedError extends Error {
   constructor(tool: string) { super(`Mutating tool ${tool} blocked`); this.name = 'MutationBlockedError'; }
@@ -39,7 +40,7 @@ export class ContinenteMcp extends EventEmitter {
   }
 
   private track(result: ToolResult): ToolResult {
-    const next = result.error?.code === 'not_authenticated' ? false : result.status === 'error' ? this.sessionValid : true;
+    const next = isNotAuthenticated(result) ? false : result.status === 'error' ? this.sessionValid : true;
     if (next !== this.sessionValid) { this.sessionValid = next; this.emit('session', next); }
     return result;
   }

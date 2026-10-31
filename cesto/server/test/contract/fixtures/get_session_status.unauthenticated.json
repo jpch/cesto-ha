@@ -1,0 +1,28 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "browser": "closed",
+      "credentials": {
+        "hasEmail": false,
+        "hasPassword": false
+      },
+      "savedCookies": "missing",
+      "authentication": {
+        "state": "unauthenticated",
+        "checkedAt": "2026-10-31T09:00:00.000Z"
+      },
+      "favorites": {
+        "state": "missing",
+        "fetchedAt": null,
+        "expiresAt": null,
+        "empty": null
+      },
+      "update": {
+        "currentVersion": "0.12.1",
+        "latestVersion": null,
+        "available": false
+      }
+    }
+  }
+}

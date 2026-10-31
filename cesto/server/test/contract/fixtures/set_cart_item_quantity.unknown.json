@@ -1,0 +1,17 @@
+{
+  "result": {
+    "status": "error",
+    "error": {
+      "code": "cart_change_unconfirmed",
+      "message": "The cart change could not be confirmed.",
+      "retryable": false
+    },
+    "mutation": {
+      "outcome": "unknown",
+      "recovery": {
+        "action": "get_cart",
+        "automaticReplay": false
+      }
+    }
+  }
+}

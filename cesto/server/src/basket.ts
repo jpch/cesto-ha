@@ -4,6 +4,10 @@ import type { PreferenceStore } from './habits.js';
 import type { ListService } from './lists.js';
 import type { Line } from './matcher.js';
 import type { ToolResult } from './mcp/tools.js';
+import { cartItems, estimatedCostOf, isNotAuthenticated, mutationOutcome as outcomeOf, previewProblems, type CartItem, type PreviewProblem } from './mcp/upstream.js';
+
+/** Re-exported for existing callers; the shapes live in mcp/upstream.ts. */
+export { cartItems, cartQuantityOf, previewProblems, type PreviewProblem } from './mcp/upstream.js';
 import { ProposalError, type Proposal, type ProposalService } from './proposals.js';
 
 /** The account calls the basket needs; ContinenteMcp + CartWriter in production. */
@@ -15,30 +19,10 @@ export interface CartApi {
 }
 
 export type Mode = 'merge' | 'replace';
-/** quantity is null when the line is in the cart but its quantity could not be read. */
-interface CartItem { productId: string; quantity: number | null }
 export interface Preview {
   preview_id: string; mode: Mode; created_at: string; test_mode: boolean;
   items: { item_id: number; product_id: string; name: string; current: number; add: number; desired: number }[];
   removed: CartItem[]; estimated_cost: unknown; problems: PreviewProblem[];
-}
-/** A line continentept-mcp would refuse, or whose product is not available. */
-export interface PreviewProblem { product_id: string; name: string | null; availability: string | null; error_key: string | null }
-
-/**
- * continentept-mcp's `preview_cart_changes` reports `problems` as a count and the details on
- * each line; the API always returns a list (the phone app parses it as one).
- */
-export function previewProblems(data: Record<string, unknown> | undefined): PreviewProblem[] {
-  const lines = Array.isArray(data?.lines) ? (data!.lines as Record<string, unknown>[]) : [];
-  return lines
-    .filter(l => l && (l.error != null || (l.availability != null && l.availability !== 'available')))
-    .map(l => ({
-      product_id: String(l.productId ?? ''),
-      name: typeof l.name === 'string' ? l.name : null,
-      availability: typeof l.availability === 'string' ? l.availability : null,
-      error_key: l.error && typeof (l.error as { code?: unknown }).code === 'string' ? `error.${(l.error as { code: string }).code}` : null,
-    }));
 }
 export type JobStatus = 'queued' | 'running' | 'waiting_session' | 'done' | 'simulated' | 'needs_attention' | 'failed';
 export interface JobLine {
@@ -62,26 +46,6 @@ export interface Job {
 }
 
 class SessionExpired extends Error {}
-/**
- * continentept-mcp 0.12 reports a cart line quantity as `{status:'known', quantity:{value, unit}}` or
- * `{status:'unknown', value}`; plain numbers are accepted too. Reading it with Number() gave NaN, so every
- * verified line looked missing (the 0.2.0 "needs attention" bug).
- */
-export function cartQuantityOf(q: unknown): number | null {
-  if (typeof q === 'number') return Number.isFinite(q) ? q : null;
-  if (typeof q === 'string' && q.trim() && Number.isFinite(Number(q))) return Number(q);
-  if (q && typeof q === 'object') {
-    const o = q as { status?: unknown; quantity?: { value?: unknown } | number; value?: unknown };
-    if (o.status === 'known' && o.quantity && typeof o.quantity === 'object') return cartQuantityOf(o.quantity.value);
-    if (o.status === 'known' && typeof o.quantity === 'number') return cartQuantityOf(o.quantity);
-    if ('value' in o) return cartQuantityOf(o.value);
-  }
-  return null;
-}
-export const cartItems = (r: ToolResult): CartItem[] =>
-  ((r.data?.items ?? []) as { productId?: unknown; kind?: unknown; quantity?: unknown }[])
-    .filter(i => i && i.productId != null && i.kind !== 'bag')
-    .map(i => ({ productId: String(i.productId), quantity: cartQuantityOf(i.quantity) }));
 /** Total quantity of a product in the cart; null = present with an unreadable quantity; 0 = absent. */
 export function quantityInCart(cart: CartItem[], productId: string): number | null {
   const lines = cart.filter(c => c.productId === String(productId));
@@ -94,12 +58,7 @@ export const isInCart = (found: number | null, desired: number) => found === nul
 /** Delays (ms) before each cart read-back; the cart page can lag behind the writes. */
 export const VERIFY_DELAYS_MS = [1000, 2000, 4000, 8000];
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-const outcomeOf = (r: ToolResult): string => {
-  if (r.simulated) return 'simulated';
-  const o = (r as { mutation?: { outcome?: string } }).mutation?.outcome ?? (r.data?.outcome as string | undefined);
-  return o ?? (r.status === 'error' ? 'not_applied' : 'unknown');
-};
-const check = (r: ToolResult): ToolResult => { if (r.error?.code === 'not_authenticated') throw new SessionExpired(); return r; };
+const check = (r: ToolResult): ToolResult => { if (isNotAuthenticated(r)) throw new SessionExpired(); return r; };
 const active = (p: Proposal) => p.lines.filter((l): l is Line & { selected: NonNullable<Line['selected']> } => !l.skipped && !!l.selected && !l.error && l.quantity > 0);
 
 /**
@@ -137,11 +96,11 @@ export class BasketService {
     });
     for (const it of items) it.desired = totals.get(it.product_id)!;
     const res = await this.cart.previewCartChanges([...totals].map(([productId, quantity]) => ({ productId, quantity })));
-    if (res.error?.code === 'not_authenticated') throw new ProposalError(409, 'error.session_expired');
+    if (isNotAuthenticated(res)) throw new ProposalError(409, 'error.session_expired');
     const preview: Preview = {
       preview_id: randomUUID(), mode, created_at: new Date().toISOString(), test_mode: this.testMode(), items,
       removed: mode === 'replace' ? current.filter(c => !totals.has(c.productId)) : [],
-      estimated_cost: res.data?.estimatedCost ?? null, problems: previewProblems(res.data as Record<string, unknown> | undefined),
+      estimated_cost: estimatedCostOf(res), problems: previewProblems(res),
     };
     (p as Proposal & { preview?: Preview }).preview = preview;
     this.proposals.save(p);

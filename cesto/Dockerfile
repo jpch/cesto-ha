@@ -38,4 +38,11 @@ COPY --from=server /src/dist /opt/server/dist
 COPY --from=server /src/node_modules /opt/server/node_modules
 COPY --from=server /src/package.json /src/openapi.yaml /opt/server/
 COPY --from=server /src/web /opt/server/web
+
+# Upstream contract: the installed continentept-mcp must publish exactly the reviewed tools and
+# schemas (tools/list over stdio, no sign-in, empty data directory). A new, removed or changed tool
+# fails the build until it is reviewed (server/test/contract/).
+COPY --from=server /src/scripts/upstream-tools.mjs /opt/server/contract-check/scripts/
+COPY --from=server /src/test/contract/upstream-tools.json /opt/server/contract-check/test/contract/
+RUN node /opt/server/contract-check/scripts/upstream-tools.mjs --check && rm -rf /opt/server/contract-check
 RUN cd /opt/smoke && npm ci --omit=dev && rm -rf /root/.npm

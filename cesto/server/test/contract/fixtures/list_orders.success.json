@@ -1,0 +1,49 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "orders": [
+        {
+          "orderId": "order-0001",
+          "orderNumber": "000000001",
+          "date": "2026-10-20",
+          "rawDate": "20/10/2026",
+          "lines": {
+            "status": "available",
+            "items": [
+              {
+                "productId": "2000001",
+                "name": "Leite UHT Meio-Gordo",
+                "quantity": {
+                  "status": "known",
+                  "quantity": {
+                    "value": 6,
+                    "unit": "un"
+                  }
+                }
+              },
+              {
+                "productId": "2000002",
+                "name": "Banana",
+                "quantity": {
+                  "status": "known",
+                  "quantity": {
+                    "value": 1.2,
+                    "unit": "kg"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "completeness": "complete",
+      "failures": [],
+      "nextCursor": null,
+      "hasMore": false,
+      "detailBudget": 5,
+      "detailsRead": 1
+    }
+  }
+}

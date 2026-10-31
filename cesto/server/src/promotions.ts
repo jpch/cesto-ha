@@ -2,6 +2,7 @@ import type { CatalogReader, Product, Promotion } from './catalog.js';
 import { thumbnailUrl } from './thumbnails.js';
 import type { AiClient } from './ai.js';
 import type { Item } from './lists.js';
+import { productsOf } from './mcp/upstream.js';
 
 export interface PromoProduct { product_id: string; name: string; package_text: string | null; price: Product['price'] | null; image_url: string | null; thumbnail_url: string | null; promotions: Promotion[] }
 export interface PromoSuggestion { item_id: number; item_name: string; query: string; product: PromoProduct; reason: string | null }
@@ -41,7 +42,7 @@ export class PromotionService {
       let found = byQuery.get(query.toLowerCase());
       if (!found) {
         const res = await this.catalog.searchProducts({ query, limit: 20 });
-        found = ((res.data?.products as Product[] | undefined) ?? []).filter(p => p.productId && (p.promotions?.length ?? 0) > 0 && p.availability !== 'unavailable');
+        found = productsOf(res).filter(p => (p.promotions?.length ?? 0) > 0 && p.availability !== 'unavailable');
         byQuery.set(query.toLowerCase(), found);
       }
       let n = 0;
