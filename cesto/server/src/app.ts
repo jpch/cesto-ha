@@ -22,7 +22,7 @@ import { BasketService, type CartApi } from './basket.js';
 import { createProvider, PhotoError, PhotoService, type PhotoInput } from './vision.js';
 import type { EventEmitter } from 'node:events';
 import { createAiClient, type AiClient } from './ai.js';
-import { PromotionService } from './promotions.js';
+import { PromotionSearches, PromotionService } from './promotions.js';
 
 declare module 'fastify' {
   interface FastifyRequest { principal?: TokenRecord }
@@ -410,6 +410,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const list = lists.current();
     return runJob(() => promotions.suggest(lists.items(list.id)));
   });
+
+  // 1.4.0: async search with per-item progress and cancel (LAN only, read-only: search_products).
+  const searches = promotions ? new PromotionSearches(promotions, runJob) : undefined;
+  const needSearches = () => { if (primary) can('promotions'); if (!searches) throw new ProposalError(503, 'error.mcp_unavailable'); return searches; };
+  app.post('/api/v1/promotions/searches', async (_req, reply) => {
+    const s = needSearches();
+    const list = lists.current();
+    return reply.code(202).send(s.start(lists.items(list.id)));
+  });
+  app.get<{ Params: { id: string } }>('/api/v1/promotions/searches/:id', async (req, reply) =>
+    needSearches().get(req.params.id) ?? reply.code(404).send(apiError('not_found', 'error.search_not_found')));
+  app.delete<{ Params: { id: string } }>('/api/v1/promotions/searches/:id', async (req, reply) =>
+    needSearches().stop(req.params.id) ?? reply.code(404).send(apiError('not_found', 'error.search_not_found')));
 
   const search = catalog ? new ProductSearch(catalog) : undefined;
   const searchLimit = new RateLimiter(SEARCH_LIMIT, SEARCH_WINDOW_MS);
