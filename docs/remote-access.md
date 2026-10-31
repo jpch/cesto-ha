@@ -1,4 +1,4 @@
-# Remote access (list API only)
+# Remote access (list API and product search)
 
 Replaces spec decision 9. Away from home the Android app reaches **only the shared list API**, through the
 external Home Assistant URL, authenticated by Home Assistant with a long-lived access token. The Continente

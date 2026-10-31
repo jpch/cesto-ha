@@ -84,3 +84,29 @@ describe('remote access through Home Assistant (ingress)', () => {
     expect((await app.inject({ url: '/api/v1/promotions', remoteAddress: '192.0.2.20', headers: { authorization: `Bearer ${token}` } })).statusCode).toBe(200);
   });
 });
+
+describe('1.2.0: product search from outside and add-on slug', () => {
+  it('searches the catalogue through ingress (read-only) and rate limits per HA user', async () => {
+    const { app } = await setup();
+    const first = await app.inject({ method: 'POST', url: '/api/v1/catalog/search', remoteAddress: INGRESS, headers: ha, payload: { query: 'leite' } });
+    expect(first.statusCode).toBe(200);
+    for (let i = 1; i < 10; i++) await app.inject({ method: 'POST', url: '/api/v1/catalog/search', remoteAddress: INGRESS, headers: ha, payload: { query: 'leite' } });
+    const limited = await app.inject({ method: 'POST', url: '/api/v1/catalog/search', remoteAddress: INGRESS, headers: ha, payload: { query: 'leite' } });
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json().error.message_key).toBe('error.rate_limited');
+    const other = await app.inject({ method: 'POST', url: '/api/v1/catalog/search', remoteAddress: INGRESS, headers: { ...ha, 'x-remote-user-id': 'u2' }, payload: { query: 'pão' } });
+    expect(other.statusCode).toBe(200);
+  });
+
+  it('search still needs HA authentication through ingress', async () => {
+    const { app } = await setup();
+    expect((await app.inject({ method: 'POST', url: '/api/v1/catalog/search', remoteAddress: INGRESS, payload: { query: 'leite' } })).statusCode).toBe(401);
+  });
+
+  it('health and the pairing QR carry the add-on slug', async () => {
+    const app = buildApp({ config: testConfig({ ingressAddress: INGRESS, addonSlug: '0369824b_cesto' }), db: openDatabase(':memory:'), version: '1.2.0' });
+    expect((await app.inject({ url: '/api/v1/health', remoteAddress: '192.0.2.20' })).json().addon_slug).toBe('0369824b_cesto');
+    const pair = await app.inject({ method: 'POST', url: '/api/v1/admin/pair', remoteAddress: INGRESS, payload: { name: 'Ana', address: 'http://192.0.2.10:8099' } });
+    expect(pair.json().uri).toMatch(/&slug=0369824b_cesto$/);
+  });
+});

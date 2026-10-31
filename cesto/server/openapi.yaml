@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.1.0
+  version: 1.2.0
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -72,6 +72,7 @@ components:
         test_mode: { type: boolean }
         session_valid: { type: [boolean, "null"] }
         queue_length: { type: integer }
+        addon_slug: { type: [string, "null"], description: "Supervisor slug of this add-on (1.2.0+), so the app can find its ingress URL" }
     Token:
       type: object
       properties:
@@ -417,9 +418,11 @@ paths:
       responses: { "202": { description: job (retry_of = the original job) }, "404": { description: not found }, "409": { description: "nothing to retry (error.nothing_to_retry)" } }
   /catalog/search:
     post:
-      summary: "Search Continente for a product read from a photo (user-triggered; may take a few seconds). Barcode first, then the composed name. Read-only (search_products), never touches the cart. LAN only."
+      tags: [remote]
+      summary: "Search Continente for a product read from a photo (user-triggered; may take a few seconds). Barcode first, then the composed name. Read-only (search_products), never touches the cart. Also remote (HA ingress). Rate limited: 10 per minute per user (429 error.rate_limited)."
       requestBody: { content: { application/json: { schema: { type: object, properties: { query: { type: string, maxLength: 120 }, barcode: { type: string, pattern: "^\\d{6,14}$" } } } } } }
       responses:
+        "429": { description: "too many searches (error.rate_limited); Retry-After in seconds" }
         "200":
           description: candidates
           content:
