@@ -8,6 +8,11 @@ import { Matcher, type Line } from './matcher.js';
 import { productOf } from './mcp/upstream.js';
 
 export interface Proposal { proposal_id: string; store?: string; list_id: number; created_by: string; created_at: string; updated_at: string; revision?: number; lines: Line[] }
+export interface PendingProposal {
+  proposal_id: string; status: 'matching' | 'failed'; started_at: string;
+  progress: { done: number; total: number };
+  error?: { status: number; message_key: string };
+}
 export class ProposalError extends Error { constructor(readonly status: number, readonly key: string) { super(key); } }
 
 /** Matching run over the pending items of the current list; stored so choices and previews can refer to it. */
@@ -24,20 +29,54 @@ export class ProposalService {
    * One proposal (and so one cart) per supermarket (decision 63): only pending items whose preferred store is
    * `store`, or that have none when `store` is the default connector.
    */
-  async create(createdBy: string, itemIds?: number[], store = 'continente', defaultStore = 'continente'): Promise<Proposal> {
+  private itemsFor(itemIds: number[] | undefined, store: string, defaultStore: string) {
     const list = this.lists.current();
     let items = this.lists.items(list.id).filter(i => i.state === 'pending' && (i.store === store || (i.store === null && store === defaultStore)));
     if (itemIds) items = items.filter(i => itemIds.includes(i.id));
     if (!items.length) throw new ProposalError(409, 'error.nothing_to_match');
+    return { list, items };
+  }
+
+  async create(createdBy: string, itemIds?: number[], store = 'continente', defaultStore = 'continente', opts: { id?: string; onProgress?: (done: number, total: number) => void } = {}): Promise<Proposal> {
+    const { list, items } = this.itemsFor(itemIds, store, defaultStore);
+    opts.onProgress?.(0, items.length);
     const habits = await this.habits.fresh().catch(() => this.habits.get());
     const lines: Line[] = [];
-    for (const item of items) lines.push(await this.matcher.match({ id: item.id, name: item.name, quantity: item.quantity, unit: item.unit, product: item.product }, habits));
+    for (const item of items) {
+      lines.push(await this.matcher.match({ id: item.id, name: item.name, quantity: item.quantity, unit: item.unit, product: item.product }, habits));
+      opts.onProgress?.(lines.length, items.length);
+    }
     const now = new Date().toISOString();
-    const proposal: Proposal = { proposal_id: randomUUID(), store, list_id: list.id, created_by: createdBy, created_at: now, updated_at: now, lines };
+    const proposal: Proposal = { proposal_id: opts.id ?? randomUUID(), store, list_id: list.id, created_by: createdBy, created_at: now, updated_at: now, lines };
     this.db.prepare('INSERT INTO proposals (id, list_id, created_by, json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
       .run(proposal.proposal_id, list.id, createdBy, JSON.stringify(proposal), now, now);
     return proposal;
   }
+
+  /**
+   * Matching runs one Continente search per item through the single MCP queue (plus a daily habits refresh
+   * that reads the order history), which can take longer than a phone's HTTP read timeout. Async creation
+   * returns at once; the phone polls GET /basket/proposals/:id until it is ready or failed.
+   */
+  private readonly pending = new Map<string, PendingProposal>();
+  createAsync(run: (job: () => Promise<Proposal>) => Promise<Proposal>, createdBy: string, itemIds: number[] | undefined, store: string, defaultStore: string): PendingProposal {
+    // A retry while a run is still going returns the same run instead of queueing another one.
+    const running = [...this.pending.values()].find(p => p.status === 'matching');
+    if (running) return running;
+    this.itemsFor(itemIds, store, defaultStore); // 409 now, not after polling
+    const id = randomUUID();
+    const entry: PendingProposal = { proposal_id: id, status: 'matching', progress: { done: 0, total: 0 }, started_at: new Date().toISOString() };
+    this.pending.set(id, entry);
+    run(() => this.create(createdBy, itemIds, store, defaultStore, { id, onProgress: (done, total) => { entry.progress = { done, total }; } }))
+      .then(() => { this.pending.delete(id); })
+      .catch((e: unknown) => {
+        entry.status = 'failed';
+        entry.error = e instanceof ProposalError ? { status: e.status, message_key: e.key } : { status: 502, message_key: 'error.mcp_unavailable' };
+        setTimeout(() => this.pending.delete(id), 10 * 60_000).unref?.();
+      });
+    return entry;
+  }
+  pendingRun(id: string): PendingProposal | undefined { return this.pending.get(id); }
 
   get(id: string): Proposal | undefined {
     const row = this.db.prepare('SELECT json FROM proposals WHERE id = ?').get(id) as { json: string } | undefined;
