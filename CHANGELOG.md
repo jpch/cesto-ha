@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-31
+
+### Changed
+- The access log now also records successful requests that took 10 s or more, so a phone-side timeout on a slow
+  browser-backed call (promotions, line edits, preview) can be traced. Paths and token ids only, never secrets.
+
 ## [1.3.1] - 2026-10-31
 
 ### Fixed

@@ -48,6 +48,8 @@ export interface AppDeps {
   catalog?: CatalogReader;
   /** Runs an MCP job through the single-worker queue. */
   runJob?: <T>(job: () => Promise<T>) => Promise<T>;
+  /** Successful requests at least this slow are logged (default [SLOW_REQUEST_MS]). */
+  slowRequestMs?: number;
   /** Delays before each cart read-back after applying (default VERIFY_DELAYS_MS); tests use zeros. */
   verifyDelaysMs?: number[];
   /** Cart reads plus the test-mode-guarded CartWriter. */
@@ -98,6 +100,9 @@ export function accessLine(method: string, path: string, status: number, via: 'l
   return `[cesto] ${method} ${path.slice(0, 120)} ${status} via=${via} by=${who}${note ? ` (${note})` : ''} ${Math.round(ms)}ms`;
 }
 
+/** Requests at least this slow are logged even when they succeed: the phone's default read timeout is 30 s. */
+export const SLOW_REQUEST_MS = 10_000;
+
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: deps.config.logLevel === 'debug' ? { level: 'debug' } : false });
   const tokens = new TokenStore(deps.db);
@@ -139,8 +144,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.addHook('onResponse', async (req, reply) => {
     const path = req.url.split('?')[0]!;
-    // Failures always, successes only at log_level debug (the app polls every 30 s).
-    if (deps.accessLog && path.startsWith('/api/v1/') && (reply.statusCode >= 400 || deps.config.logLevel === 'debug')) {
+    // Failures always, slow requests always (a phone may have timed out on them), other successes only at debug.
+    if (deps.accessLog && path.startsWith('/api/v1/') && (reply.statusCode >= 400 || reply.elapsedTime >= (deps.slowRequestMs ?? SLOW_REQUEST_MS) || deps.config.logLevel === 'debug')) {
       deps.accessLog(accessLine(req.method, path, reply.statusCode, isIngress(req) ? 'ingress' : 'lan', req.principal, authNote.get(req), reply.elapsedTime));
     }
     if (req.method !== 'GET' && reply.statusCode < 400 && /^\/api\/v1\/(lists|items)(\/|$)/.test(path) && !path.endsWith('/parse')) deps.onListChanged?.();

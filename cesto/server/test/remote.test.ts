@@ -124,4 +124,11 @@ describe('1.2.1: access log', () => {
     ]);
     expect(lines.join('\n')).not.toContain('secret');
   });
+
+  it('1.3.2: logs slow successful requests (a phone may have timed out on them)', async () => {
+    const lines: string[] = [];
+    const app = buildApp({ config: testConfig({ ingressAddress: INGRESS }), db: openDatabase(':memory:'), version: '1.3.2', accessLog: l => lines.push(l), slowRequestMs: 0 });
+    await app.inject({ url: '/api/v1/health', remoteAddress: '192.0.2.20' });
+    expect(lines).toEqual([expect.stringMatching(/^\[cesto\] GET \/api\/v1\/health 200 via=lan /)]);
+  });
 });
