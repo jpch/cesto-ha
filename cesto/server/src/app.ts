@@ -67,9 +67,28 @@ const PUBLIC_ROUTES = new Set(['/api/v1/health', '/api/v1/openapi.yaml']);
 
 /**
  * Routes reachable through Home Assistant ingress, which is also the remote path (external HA URL).
- * Only the shared list API: never the cart, basket, jobs, photos, promotions, preferences or habits.
+ * The shared list API plus the read-only product search (`catalog/search`, rate limited per user):
+ * never the cart, basket, jobs, photos, promotions, preferences or habits.
  */
-export const REMOTE_ROUTE = /^\/api\/v1\/(health|openapi\.yaml|me|connectors|lists(\/current(\/changes|\/items|\/parse|\/clear)?|\/history(\/\d+\/repeat)?)?|items\/\d+)$/;
+/** Product searches per user per window (LAN and remote): each one drives the shared headless browser. */
+export const SEARCH_LIMIT = 10;
+export const SEARCH_WINDOW_MS = 60_000;
+
+/** Fixed-window counter per key; memory is bounded by the number of users/tokens. */
+export class RateLimiter {
+  private readonly hits = new Map<string, { start: number; count: number }>();
+  constructor(private readonly max: number, private readonly windowMs: number, private readonly now: () => number = Date.now) {}
+  take(key: string): boolean {
+    const t = this.now();
+    const h = this.hits.get(key);
+    if (!h || t - h.start >= this.windowMs) { this.hits.set(key, { start: t, count: 1 }); return true; }
+    if (h.count >= this.max) return false;
+    h.count++;
+    return true;
+  }
+}
+
+export const REMOTE_ROUTE = /^\/api\/v1\/(health|openapi\.yaml|me|connectors|lists(\/current(\/changes|\/items|\/parse|\/clear)?|\/history(\/\d+\/repeat)?)?|items\/\d+|catalog\/search)$/;
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: deps.config.logLevel === 'debug' ? { level: 'debug' } : false });
@@ -116,6 +135,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     test_mode: deps.config.testMode,
     session_valid: deps.sessionValid?.() ?? null,
     queue_length: deps.queueLength?.() ?? 0,
+    addon_slug: deps.config.addonSlug ?? null,
   }));
 
   app.get('/api/v1/openapi.yaml', async (_req, reply) =>
@@ -133,7 +153,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (typeof name !== 'string' || !name.trim() || name.length > 60) return reply.code(400).send(apiError('invalid_request', 'error.invalid_token_request'));
     const address = normaliseAddress(req.body?.address);
     const created = tokens.create(name.trim(), 'phone');
-    const uri = pairingUri(address, created.token);
+    const uri = pairingUri(address, created.token, deps.config.addonSlug);
     return reply.code(201).header('cache-control', 'no-store').send({ ...created.record, address, token: created.token, uri, qr_svg: qrSvg(uri) });
   });
 
@@ -366,8 +386,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   const search = catalog ? new ProductSearch(catalog) : undefined;
-  app.post<{ Body: { query?: unknown; barcode?: unknown } }>('/api/v1/catalog/search', async req => {
+  const searchLimit = new RateLimiter(SEARCH_LIMIT, SEARCH_WINDOW_MS);
+  app.post<{ Body: { query?: unknown; barcode?: unknown } }>('/api/v1/catalog/search', async (req, reply) => {
     if (!search) throw new ProposalError(503, 'error.mcp_unavailable');
+    const p = req.principal!;
+    if (!searchLimit.take(p.kind === 'ha' ? `ha:${String(req.headers['x-remote-user-id'] ?? p.name)}` : `token:${p.id}`)) {
+      return reply.code(429).header('retry-after', String(SEARCH_WINDOW_MS / 1000)).send(apiError('rate_limited', 'error.rate_limited'));
+    }
     if (primary && req.body?.barcode !== undefined) can('barcode_lookup');
     return runJob(() => search.search(req.body ?? {}));
   });

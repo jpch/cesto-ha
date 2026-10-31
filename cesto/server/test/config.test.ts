@@ -24,3 +24,15 @@ describe('config', () => {
     expect(c.language).toBe('pt-PT');
   });
 });
+
+describe('addonSlug', () => {
+  it('derives the slug from the Supervisor hostname, or ADDON_SLUG', async () => {
+    const { addonSlug } = await import('../src/config.js');
+    expect(addonSlug({ HOSTNAME: '0369824b-cesto' })).toBe('0369824b_cesto');
+    expect(addonSlug({ HOSTNAME: 'local-cesto' })).toBe('local_cesto');
+    expect(addonSlug({ HOSTNAME: 'abc' })).toBeNull();
+    expect(addonSlug({ HOSTNAME: 'Bad Host' })).toBeNull();
+    expect(addonSlug({ ADDON_SLUG: 'x1_cesto', HOSTNAME: '0369824b-cesto' })).toBe('x1_cesto');
+    expect(addonSlug({ ADDON_SLUG: '../evil' })).toBeNull();
+  });
+});
