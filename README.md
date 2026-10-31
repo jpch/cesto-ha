@@ -53,6 +53,10 @@ promotions are never reachable remotely, and port 8099 must not be forwarded. Se
 `ai_provider` and `ai_api_key` in the add-on options to let an AI choose and explain them; with `none` (default)
 nothing leaves the server and the suggestions come from a Continente search of each item's category.
 
+Since 1.4.0 the app uses the async form, `POST /api/v1/promotions/searches`, and polls it for per-item progress
+("7 de 18 produtos vistos"); it can cancel and keep the partial results. Each promotion also lists related products
+that are cheaper per kg or per litre (same product type, any brand or size, same unit only, cheapest first).
+
 ## Main features
 
 - Runs `continentept-mcp` (Continente catalogue search, favourites, history and cart) and exposes it over HTTP on the home network.
