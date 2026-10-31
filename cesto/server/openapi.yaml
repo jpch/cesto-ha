@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.4.0
+  version: 1.5.0
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -274,6 +274,11 @@ paths:
       summary: Add-on status for the ingress page (HA ingress only)
       security: []
       responses: { "200": { description: "version, test_mode, language, session_valid, queue_length, credentials {configured, masked email}, login {state, started_at}" }, "403": { description: Not from ingress } }
+  /admin/metrics:
+    get:
+      summary: "Timing metrics from memory (HA ingress, admins only): per-tool calls/errors/p50/p95/max over the last 500 MCP calls, queue length and waiting jobs per priority, error codes, session_lost, throttled, captcha_or_sign_in_failures, cache entries/hits/misses and the last 20 of 100 job summaries. Tool names, durations and error codes only; never queries, products or cart contents."
+      security: []
+      responses: { "200": { description: Metrics snapshot }, "403": { description: Not from ingress or not an admin }, "503": { description: Metrics unavailable } }
   /admin/credentials:
     put:
       summary: Save the Continente account to /data/continente/credentials.env (0600); the password is never returned (HA ingress only)

@@ -23,6 +23,7 @@ import { createProvider, PhotoError, PhotoService, type PhotoInput } from './vis
 import type { EventEmitter } from 'node:events';
 import { createAiClient, type AiClient } from './ai.js';
 import { PromotionSearches, PromotionService } from './promotions.js';
+import type { RunJob } from './queue.js';
 
 declare module 'fastify' {
   interface FastifyRequest { principal?: TokenRecord }
@@ -47,7 +48,9 @@ export interface AppDeps {
   /** Read-only Continente catalogue (ContinenteMcp); matching routes return 503 without it. */
   catalog?: CatalogReader;
   /** Runs an MCP job through the single-worker queue. */
-  runJob?: <T>(job: () => Promise<T>) => Promise<T>;
+  runJob?: RunJob;
+  /** Timing metrics snapshot for GET /api/v1/admin/metrics (1.5.0). */
+  metrics?: () => unknown;
   /** Successful requests at least this slow are logged (default [SLOW_REQUEST_MS]). */
   slowRequestMs?: number;
   /** Delays before each cart read-back after applying (default VERIFY_DELAYS_MS); tests use zeros. */
@@ -165,6 +168,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.get('/api/v1/me', async req => ({ id: req.principal!.id, name: req.principal!.name, kind: req.principal!.kind }));
 
   app.get('/api/v1/admin/tokens', async () => ({ tokens: tokens.list() }));
+
+  // Timing metrics (1.5.0): admin-only like every /admin route; tool names, durations and error codes only.
+  app.get('/api/v1/admin/metrics', async (_req, reply) => {
+    if (!deps.metrics) return reply.code(503).send(apiError('unavailable', 'error.metrics_unavailable'));
+    return reply.header('cache-control', 'no-store').send(deps.metrics());
+  });
 
   app.get('/api/v1/admin/connectors', async () => ({ connectors: connectorInfo() }));
 
@@ -309,7 +318,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   // --- Matching, habits and shared preferences ---
   const prefs = new PreferenceStore(deps.db);
-  const runJob = deps.runJob ?? (<T>(job: () => Promise<T>) => job());
+  const runJob: RunJob = deps.runJob ?? (job => job());
   // Connectors (decision 62): the core works through the enabled connector; today Continente is the only one.
   const connectors: Connector[] = (deps.connectors ?? (deps.catalog && deps.cart
     ? [continenteConnector(deps.catalog, deps.cart, () => deps.sessionValid?.() ?? null)] : []))
@@ -337,8 +346,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (store !== primary?.id && deps.connectors) return reply.code(503).send(apiError('unavailable', 'error.connector_unavailable'));
     if (ids !== undefined && (!Array.isArray(ids) || !ids.every(Number.isInteger))) return reply.code(400).send(apiError('invalid_request', 'error.invalid_request'));
     const { proposals } = needCatalog();
-    if (req.body?.async === true) return reply.code(202).send(proposals.createAsync(runJob, req.principal!.name, ids as number[] | undefined, store, defaultStore));
-    return reply.code(201).send(await runJob(() => proposals.create(req.principal!.name, ids as number[] | undefined, store, defaultStore)));
+    if (req.body?.async === true) return reply.code(202).send(proposals.createAsync(job => runJob(job, { label: 'proposal' }), req.principal!.name, ids as number[] | undefined, store, defaultStore));
+    return reply.code(201).send(await runJob(() => proposals.create(req.principal!.name, ids as number[] | undefined, store, defaultStore), { label: 'proposal' }));
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/basket/proposals/:id', async (req, reply) => {
@@ -352,7 +361,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.patch<{ Params: { id: string; item_id: string }; Body: { product_id?: unknown; quantity?: unknown; skip?: unknown } }>(
     '/api/v1/basket/proposals/:id/lines/:item_id',
-    async req => { const { proposals } = needCatalog(); return runJob(() => proposals.choose(req.params.id, Number(req.params.item_id), req.body ?? {})); });
+    async req => { const { proposals } = needCatalog(); return runJob(() => proposals.choose(req.params.id, Number(req.params.item_id), req.body ?? {}), { priority: 'user', label: 'line_edit' }); });
 
   const basket = proposals && cart ? new BasketService(deps.db, lists, proposals, cart, prefs, () => deps.config.testMode, runJob, deps.verifyDelaysMs) : undefined;
   deps.sessionEvents?.on('session', (valid: boolean) => { if (valid) basket?.resumeWaiting(); });
@@ -362,7 +371,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const mode = req.body?.mode ?? 'merge';
     if (mode !== 'merge' && mode !== 'replace') return reply.code(400).send(apiError('invalid_request', 'error.invalid_mode'));
     const b = needBasket();
-    return runJob(() => b.preview(req.params.id, mode));
+    return runJob(() => b.preview(req.params.id, mode), { priority: 'user', label: 'preview' });
   });
 
   app.post<{ Params: { id: string }; Body: { preview_id?: unknown } }>('/api/v1/basket/proposals/:id/apply', async (req, reply) =>
@@ -379,7 +388,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.post<{ Body: PhotoInput }>('/api/v1/photos', { bodyLimit: 12 * 1024 * 1024 }, async req => {
     const ph = needPhotos();
-    return runJob(() => ph.identify(req.body ?? {}));
+    return runJob(() => ph.identify(req.body ?? {}), { label: 'photo' });
   });
   app.get<{ Params: { id: string } }>('/api/v1/photos/:id/thumbnail', async (req, reply) => {
     const t = needPhotos().thumbnail(req.params.id);
@@ -408,7 +417,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (primary) can('promotions');
     if (!promotions) throw new ProposalError(503, 'error.mcp_unavailable');
     const list = lists.current();
-    return runJob(() => promotions.suggest(lists.items(list.id)));
+    return runJob(() => promotions.suggest(lists.items(list.id)), { priority: 'background', label: 'promotions' });
   });
 
   // 1.4.0: async search with per-item progress and cancel (LAN only, read-only: search_products).
@@ -433,12 +442,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return reply.code(429).header('retry-after', String(SEARCH_WINDOW_MS / 1000)).send(apiError('rate_limited', 'error.rate_limited'));
     }
     if (primary && req.body?.barcode !== undefined) can('barcode_lookup');
-    return runJob(() => search.search(req.body ?? {}));
+    return runJob(() => search.search(req.body ?? {}), { label: 'search' });
   });
 
   app.get('/api/v1/habits', async () => { if (primary) can('purchase_history'); return needCatalog().habits.get(); });
 
-  app.post('/api/v1/habits/refresh', async () => { const { habits } = needCatalog(); return runJob(() => habits.refresh()); });
+  app.post('/api/v1/habits/refresh', async () => { const { habits } = needCatalog(); return runJob(() => habits.refresh(), { priority: 'background', label: 'habits' }); });
 
   return app;
 }

@@ -5,6 +5,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-31
+
+### Added
+- Timing instrumentation: one info line per MCP job (`[cesto] job=… prio=… wait_ms run_ms calls mcp_ms cache_hits
+  steps=tool:NxMS`), per-call lines only with `log_level: debug`, at most 60 lines a minute (suppressed lines are
+  counted). No log files of our own; stdout is rotated by the Supervisor.
+- `GET /api/v1/admin/metrics` (HA ingress, admins only): in-memory ring of the last 500 MCP calls and 100 jobs with
+  per-tool p50/p95/max, queue length and waiting jobs per priority, error codes, session-lost, throttling and
+  sign-in failure counts, and cache statistics.
+- In-memory TTL caches for catalogue reads: searches 8 h, product details (unit prices, promotions) 6 h, at most 500
+  entries each. Errors are never cached; the caches are cleared after a sign-in or an account change.
+- Session keep-alive: a read-only `get_cart` every 20–30 minutes (random jitter), skipped when the add-on talked to
+  Continente in the last 20 minutes, during a sign-in, or while the session is already known to be expired. An
+  expired session raises the existing Home Assistant persistent notification.
+
+### Changed
+- The MCP job queue has priorities: preview, apply and line edits run before proposals and searches, which run
+  before promotion searches, the habits refresh and session checks. Still one job at a time; a running job is never
+  interrupted.
+
+### Security
+- Preview and apply still read the live cart and prices (cart reads, previews and writes never go through the
+  cache). The test-mode guard and the checkout/payment block are unchanged and sit in front of the timing layer.
+- Metrics hold tool names, durations and error codes only; never queries, product ids, cart contents or tokens.
+
 ## [1.4.0] - 2026-10-31
 
 ### Added

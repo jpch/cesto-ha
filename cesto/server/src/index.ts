@@ -9,6 +9,9 @@ import { LoginService } from './login.js';
 import { StdioMcpTransport } from './mcp/client.js';
 import { CartWriter, ContinenteMcp, TestModeGuard } from './mcp/continente.js';
 import { JobQueue } from './queue.js';
+import { LogLimiter, Metrics, TimedTransport } from './metrics.js';
+import { CachedCatalog } from './cache.js';
+import { SessionKeepAlive } from './keepalive.js';
 import { continenteConnector } from './connectors/continente.js';
 
 const config = loadConfig();
@@ -20,9 +23,14 @@ const { version } = JSON.parse(readFileSync(new URL('../package.json', import.me
 const mcpCommand = process.env.MCP_COMMAND ?? 'continentept-mcp';
 const transport = new StdioMcpTransport({ command: mcpCommand });
 const testMode = () => config.testMode;
-export const mcp = new ContinenteMcp(new TestModeGuard(transport, testMode));
+// Timing instrumentation (1.5.0): stdout only (Supervisor rotates it), capped at 60 lines a minute.
+const logLimiter = new LogLimiter(line => console.log(line), 60, 60_000);
+const metrics = new Metrics(logLimiter, config.logLevel === 'debug');
+export const mcp = new ContinenteMcp(new TestModeGuard(new TimedTransport(transport, metrics), testMode));
 export const cartWriter = new CartWriter(mcp, testMode);
-export const queue = new JobQueue();
+export const queue = new JobQueue((info, job) => metrics.job(info, job));
+// Catalogue reads go through a TTL cache; cart reads, previews and writes never do.
+const catalog = new CachedCatalog(mcp, { onHit: tool => metrics.cacheHit(tool) });
 
 const credentials = new CredentialsStore(config.dataDir);
 
@@ -36,12 +44,13 @@ const login = new LoginService({
   env: { DISPLAY: ':99' },
 });
 // A new session or account is only read by a fresh MCP process.
-const restartMcp = () => { void transport.close(); };
+const restartMcp = () => { catalog.clear(); void transport.close(); };
 const checkSession = async () => {
-  await queue.run(() => mcp.getCart()).catch(() => undefined);
+  await queue.run(() => mcp.getCart(), { priority: 'background', label: 'session_check' }).catch(() => undefined);
   return mcp.sessionValid;
 };
 login.on('success', () => { restartMcp(); void checkSession(); });
+login.on('failed', () => metrics.signInFailed());
 
 // Home Assistant entities and the session-expired notification (Supervisor API).
 const ha = process.env.SUPERVISOR_TOKEN
@@ -59,7 +68,7 @@ mcp.on('session', publishHa);
 if (ha) { publishHa(); setInterval(publishHa, 60_000).unref(); }
 
 // Every supermarket call goes through a connector; cart writes keep passing the test-mode guard.
-const continente = continenteConnector(mcp, {
+const continente = continenteConnector(catalog, {
   getCart: () => mcp.getCart(),
   previewCartChanges: items => mcp.previewCartChanges(items),
   setQuantity: (productId, quantity) => cartWriter.setQuantity(productId, quantity),
@@ -70,7 +79,8 @@ const app = buildApp({
   accessLog: line => console.log(line),
   onListChanged: publishHa,
   connectors: [continente],
-  runJob: job => queue.run(job),
+  runJob: (job, options) => queue.run(job, options),
+  metrics: () => metrics.snapshot({ length: queue.length, waiting: queue.waiting() }, catalog.stats()),
   sessionEvents: mcp,
   config, db, version, credentials, login, checkSession,
   queueLength: () => queue.length,
@@ -79,8 +89,17 @@ const app = buildApp({
   vncPort: WS_PORT,
 });
 await app.listen({ host: '0.0.0.0', port: config.port });
+// Light read-only session check every 20-30 min with jitter; HA notifies when a sign-in is needed.
+const keepAlive = new SessionKeepAlive({
+  check: checkSession,
+  sessionValid: () => mcp.sessionValid,
+  signingIn: () => login.state === 'starting' || login.state === 'waiting_user',
+  idleMs: () => metrics.idleMs(),
+  log: line => logLimiter.log(line),
+});
+keepAlive.start();
 console.log(`[cesto] API listening on ${config.port} (test_mode=${config.testMode})`);
 
-const shutdown = async () => { login.cancel(); await app.close(); await transport.close(); process.exit(0); };
+const shutdown = async () => { keepAlive.stop(); login.cancel(); await app.close(); await transport.close(); process.exit(0); };
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);

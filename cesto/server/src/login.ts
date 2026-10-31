@@ -61,5 +61,6 @@ export class LoginService extends EventEmitter {
     clearTimeout(this.timer);
     for (const p of this.procs.splice(0)) if (p.exitCode === null) p.kill('SIGTERM');
     if (state === 'succeeded') this.emit('success');
+    else if (state === 'failed' || state === 'timed_out') this.emit('failed');
   }
 }

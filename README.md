@@ -89,6 +89,18 @@ After reading a product with the camera, the app can ask `POST /api/v1/catalog/s
 
 The add-on never checks out or pays: you finish the order in the Continente app or site. With `test_mode` off it changes your real cart; with `test_mode` on (the default for new installs) nothing is sent and the job ends as `simulated`. Both modes are equally unable to reach checkout or payment.
 
+## Performance and diagnostics
+
+- **Caching.** Continente searches are cached in memory for 8 hours and product details (unit price, promotions)
+  for 6 hours, so repeated proposals and promotion searches skip the site. Preview and apply always read the live
+  cart and prices. Restarting the add-on empties the caches.
+- **Priorities.** There is still only one browser session and one job at a time. Preview, apply and line edits go
+  first, promotion searches and background checks last.
+- **Session keep-alive.** Every 20–30 minutes (randomised) the add-on reads the cart once, only when it has been idle,
+  to find out early that a new sign-in is needed. Home Assistant then shows a notification.
+- **Timing.** Each job writes one summary line to the add-on log (at most 60 lines a minute; per-call lines only at
+  `debug`). `GET /api/v1/admin/metrics` on the add-on page (admins) returns the latest timings.
+
 ## Repository layout
 
 - `cesto/`: the add-on (Debian trixie base, Node.js 22, `continentept-mcp` pinned, Playwright Chromium baked into the image, plus Xvnc/noVNC for the sign-in window).
