@@ -156,7 +156,7 @@ cd cesto/server && npm ci && npm test
 
 ## Installation
 
-In Home Assistant, open the add-on store, add this repository (`https://github.com/jpch/cesto-ha`) and install the add-on. Home Assistant pulls a prebuilt image (`ghcr.io/jpch/{arch}-cesto`, aarch64 and amd64) published by CI on every push to `main` and on `v*` tags, so nothing is built on the device.
+In Home Assistant, open the add-on store, add this repository (`https://github.com/jpch/cesto-ha`) and install the add-on. Home Assistant pulls a prebuilt image (`ghcr.io/jpch/{arch}-cesto`, aarch64 and amd64) published by CI on every push to `main` and on `v*` tags, so nothing is built on the device. CI actions are pinned to commit SHAs and Dependabot proposes weekly npm and GitHub Actions updates.
 
 Warning: the Continente connector uses an unofficial MCP; Cesto is not affiliated with any supermarket.
 
