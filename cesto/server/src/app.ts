@@ -30,6 +30,8 @@ declare module 'fastify' {
 
 export interface AppDeps {
   config: Config;
+  /** Access log sink (one line per API request; never tokens, headers, bodies or query strings). */
+  accessLog?: (line: string) => void;
   db: DatabaseSync;
   version: string;
   queueLength?: () => number;
@@ -90,6 +92,12 @@ export class RateLimiter {
 
 export const REMOTE_ROUTE = /^\/api\/v1\/(health|openapi\.yaml|me|connectors|lists(\/current(\/changes|\/items|\/parse|\/clear)?|\/history(\/\d+\/repeat)?)?|items\/\d+|catalog\/search)$/;
 
+/** One access-log line. Paths only (no query string); principal by kind and token id, never the token. */
+export function accessLine(method: string, path: string, status: number, via: 'lan' | 'ingress', principal: { id: number; kind: string } | undefined, note: string | undefined, ms: number): string {
+  const who = principal ? (principal.kind === 'ha' ? 'ha-user' : `token#${principal.id}`) : 'anonymous';
+  return `[cesto] ${method} ${path.slice(0, 120)} ${status} via=${via} by=${who}${note ? ` (${note})` : ''} ${Math.round(ms)}ms`;
+}
+
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: deps.config.logLevel === 'debug' ? { level: 'debug' } : false });
   const tokens = new TokenStore(deps.db);
@@ -97,6 +105,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const credentials = deps.credentials ?? new CredentialsStore(deps.config.dataDir);
   const isIngressAddress = (ip: string | undefined) => ip === deps.config.ingressAddress || ip === `::ffff:${deps.config.ingressAddress}`;
   const isIngress = (req: FastifyRequest) => isIngressAddress(req.ip);
+  const authNote = new WeakMap<FastifyRequest, string>();
 
   app.addHook('onRequest', async (req, reply) => {
     const path = req.url.split('?')[0]!;
@@ -121,12 +130,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       const name = [req.headers['x-remote-user-display-name'], req.headers['x-remote-user-name']].find(v => typeof v === 'string' && v.trim()) as string | undefined;
       principal = { id: 0, name: (name ?? 'Home Assistant').trim().slice(0, 60), kind: 'ha', created_at: '', last_used_at: null, revoked_at: null };
     }
-    if (!principal) return reply.code(401).send(apiError('unauthorized', 'error.unauthorized'));
+    if (!principal) {
+      authNote.set(req, match ? 'unknown or revoked token' : 'no token');
+      return reply.code(401).send(apiError('unauthorized', 'error.unauthorized'));
+    }
     req.principal = principal;
   });
 
   app.addHook('onResponse', async (req, reply) => {
     const path = req.url.split('?')[0]!;
+    // Failures always, successes only at log_level debug (the app polls every 30 s).
+    if (deps.accessLog && path.startsWith('/api/v1/') && (reply.statusCode >= 400 || deps.config.logLevel === 'debug')) {
+      deps.accessLog(accessLine(req.method, path, reply.statusCode, isIngress(req) ? 'ingress' : 'lan', req.principal, authNote.get(req), reply.elapsedTime));
+    }
     if (req.method !== 'GET' && reply.statusCode < 400 && /^\/api\/v1\/(lists|items)(\/|$)/.test(path) && !path.endsWith('/parse')) deps.onListChanged?.();
   });
 
