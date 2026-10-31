@@ -1,0 +1,18 @@
+configuration:
+  test_mode:
+    name: Test mode
+    description: "On: cart changes are only simulated. Off: the add-on changes your real Continente cart. Either way it can never check out, pay or place an order."
+  log_level:
+    name: Log level
+  ai_provider:
+    name: AI provider
+    description: "Optional AI used to choose promotion suggestions (and, later, to identify products in photos). none: nothing is sent anywhere and suggestions come from a Continente search. openai or anthropic: list item names and the promotion candidates are sent to that provider."
+  ai_api_key:
+    name: AI API key
+    description: API key of the chosen AI provider. Leave empty with provider none.
+  ai_model:
+    name: AI model
+    description: Optional model name. Empty uses the default (gpt-4o-mini for OpenAI, claude-3-5-haiku-latest for Anthropic).
+  connectors:
+    name: Supermarkets
+    description: Supermarket connectors to enable. Today only continente.
