@@ -67,6 +67,7 @@ const continente = continenteConnector(mcp, {
 }, () => mcp.sessionValid);
 
 const app = buildApp({
+  accessLog: line => console.log(line),
   onListChanged: publishHa,
   connectors: [continente],
   runJob: job => queue.run(job),
