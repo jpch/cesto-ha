@@ -109,14 +109,14 @@ Screens: Setup (discover/IP + token), List, Add (text/dictation/photo), Parse re
 - Image: CI `docker buildx --platform linux/arm64,linux/amd64` + headless smoke test.
 - App: JUnit + Compose UI tests against MockWebServer; lint for hardcoded strings (`HardcodedText` as error).
 
-## 7. Decisions recorded (Alex, 2026-10-29)
+## 7. Decisions recorded (2026-10-29)
 
 1. A ~1 GB image and an always-on Chromium on the Pi 5 are accepted.
 2. CAPTCHA is solved through noVNC embedded in the add-on's HA ingress page.
 3. No vision AI provider in v1: the provider stays configurable with default `none`; photos are identified by barcode and packaging text only (on-device ML Kit barcode + text recognition).
 4. Plain HTTP with bearer tokens on the home network is accepted for v1.
 5. A new APK signing keystore is generated in T4 and stored as GitHub Actions secrets in `assistente-compras`.
-6. Distribution: The owner's public repo `jpch/continente-mcp-ha` as the add-on repository, with prebuilt multi-arch images on `ghcr.io/jpch/{arch}-continente-mcp` (`image:` in `config.yaml`), so the Pi only pulls and never builds.
+6. Distribution: Public repo `jpch/cesto-ha` as the add-on repository, with prebuilt multi-arch images on `ghcr.io/jpch/{arch}-continente-mcp` (`image:` in `config.yaml`), so the Pi only pulls and never builds.
 
 ## 8. Risks
 

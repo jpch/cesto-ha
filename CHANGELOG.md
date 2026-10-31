@@ -5,6 +5,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-31
+
+Renamed to **Cesto** (repository `jpch/cesto-ha`, add-on slug `cesto`, image `ghcr.io/jpch/{arch}-cesto`). The new slug installs as a new add-on: export from the old one and import here (see README), then sign in to Continente once.
+
+### Added
+
+- Supermarket connectors: a common core plus one connector per supermarket. Mandatory: product search, cart read/add and session; optional and declared per connector: promotions, purchase history, barcode lookup (`404 error.capability_unsupported` when missing). Continente is the first connector. New option `connectors` (default `[continente]`).
+- `GET /api/v1/connectors` (also remote): enabled connectors, their capabilities and session state, `default_store`, and `mode` (`simple` with one supermarket, `multi` with several).
+- Preferred supermarket per list item (`store`), validated against the enabled connectors and learned from choices (`store_preferences`, database migration 4). `POST /api/v1/basket/proposals` takes `store`, so each supermarket gets its own cart.
+- Phone pairing: `POST /api/v1/admin/pair` creates one token for a device and returns a `cesto://pair` link and its QR code (SVG, generated in the add-on); new "Ligar um telemóvel" section on the add-on page.
+- `POST /api/v1/admin/import`: one-time import of an export (also the old `continente-mcp-export` format) into an empty add-on; "Importar dados" on the add-on page.
+- MIT licence and CONTRIBUTING.md.
+
+### Changed
+
+- Exports are `cesto-export` format 2 and now include each item's linked product and preferred supermarket.
+- New tokens start with `cesto_` (existing tokens keep working).
+- No personal data in the repository or its history (addresses, names, URLs replaced by documentation placeholders).
+
+### Removed
+
+- The installation report of one specific device (`docs/t14-pi-install.md`).
+
 ## [0.3.0] - 2026-10-30
 
 ### Fixed
@@ -58,7 +81,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- T14 installation report for the Home Assistant Pi (`docs/t14-pi-install.md`): installed 0.1.0 in test mode, health and entities verified, 35 MB idle.
+- T14 installation report for a Home Assistant Pi: installed 0.1.0 in test mode, health and entities verified, 35 MB idle.
 
 - Photo identification (T12): `POST /photos` looks a product up by barcode, then by packaging text read on the phone, then by the vision provider (only `none`, the default: no image leaves the server). The original image is never stored; an optional thumbnail is kept until `DELETE /photos/{id}`.
 
