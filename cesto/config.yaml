@@ -1,0 +1,34 @@
+name: Cesto
+version: "1.0.0"
+slug: cesto
+description: Self-hosted shared shopping list that prepares supermarket carts (Continente first). Never checks out or pays.
+url: https://github.com/jpch/cesto-ha
+image: ghcr.io/jpch/{arch}-cesto
+arch:
+  - aarch64
+  - amd64
+init: false
+startup: application
+boot: auto
+ingress: true
+homeassistant_api: true
+hassio_api: true
+ingress_port: 8099
+# Non-admin HA users may open ingress (remote list API only); the add-on page itself still requires an HA admin.
+panel_admin: false
+ports:
+  8099/tcp: 8099
+options:
+  test_mode: true
+  log_level: info
+  ai_provider: none
+  connectors:
+    - continente
+schema:
+  test_mode: bool
+  log_level: list(debug|info|warning|error)
+  ai_provider: list(none|openai|anthropic)
+  ai_api_key: password?
+  ai_model: str?
+  connectors:
+    - list(continente)

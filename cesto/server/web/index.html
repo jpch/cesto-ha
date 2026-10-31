@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="app.title"></title>
+  <link rel="stylesheet" href="web/style.css">
+</head>
+<body>
+  <header>
+    <h1 data-i18n="app.title"></h1>
+    <div id="test-mode" class="banner" hidden data-i18n="status.test_mode_on"></div>
+    <div id="real-mode" class="banner" hidden data-i18n="status.test_mode_off"></div>
+    <p class="disclaimer" data-i18n="app.disclaimer"></p>
+  </header>
+
+  <section>
+    <h2 data-i18n="status.title"></h2>
+    <dl>
+      <dt data-i18n="status.version"></dt><dd id="version"></dd>
+      <dt data-i18n="status.session"></dt><dd id="session"></dd>
+      <dt data-i18n="status.queue"></dt><dd id="queue"></dd>
+    </dl>
+    <button id="check-session" data-i18n="status.check"></button>
+  </section>
+
+  <section>
+    <h2 data-i18n="account.title"></h2>
+    <p id="account-state"></p>
+    <form id="account-form" autocomplete="off">
+      <label><span data-i18n="account.email"></span><input type="email" name="email" required></label>
+      <label><span data-i18n="account.password"></span><input type="password" name="password" required autocomplete="new-password"></label>
+      <button type="submit" data-i18n="account.save"></button>
+      <button type="button" id="account-remove" data-i18n="account.remove"></button>
+    </form>
+  </section>
+
+  <section>
+    <h2 data-i18n="login.title"></h2>
+    <p data-i18n="login.help"></p>
+    <p id="login-state"></p>
+    <button id="login-start" data-i18n="login.start"></button>
+    <button id="login-cancel" data-i18n="login.cancel" hidden></button>
+    <iframe id="vnc" title="noVNC" hidden></iframe>
+  </section>
+
+  <section>
+    <h2 data-i18n="connectors.title"></h2>
+    <p data-i18n="connectors.help"></p>
+    <ul id="connectors"></ul>
+  </section>
+
+  <section>
+    <h2 data-i18n="pair.title"></h2>
+    <p data-i18n="pair.help"></p>
+    <form id="pair-form" autocomplete="off">
+      <label><span data-i18n="pair.device"></span><input name="name" required maxlength="60"></label>
+      <label><span data-i18n="pair.address"></span><input name="address" id="pair-address" required maxlength="200" inputmode="url"></label>
+      <button type="submit" data-i18n="pair.create"></button>
+    </form>
+    <div id="pair-result" class="banner" hidden>
+      <p data-i18n="pair.scan"></p>
+      <img id="pair-qr" alt="" width="240" height="240">
+      <details><summary data-i18n="pair.manual"></summary><dl><dt data-i18n="pair.address"></dt><dd><code id="pair-address-value"></code></dd><dt data-i18n="pair.token"></dt><dd><code id="pair-token-value"></code></dd></dl></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 data-i18n="tokens.title"></h2>
+    <table>
+      <thead><tr><th data-i18n="tokens.name"></th><th data-i18n="tokens.kind"></th><th data-i18n="tokens.last_used"></th><th></th></tr></thead>
+      <tbody id="tokens"></tbody>
+    </table>
+    <form id="token-form">
+      <label><span data-i18n="tokens.name"></span><input name="name" required maxlength="60"></label>
+      <label><span data-i18n="tokens.kind"></span>
+        <select name="kind"><option value="phone" data-i18n="tokens.kind_phone"></option><option value="app" data-i18n="tokens.kind_app"></option></select>
+      </label>
+      <button type="submit" data-i18n="tokens.create"></button>
+    </form>
+    <div id="new-token" class="banner" hidden><p data-i18n="tokens.copy_now"></p><code id="new-token-value"></code></div>
+  </section>
+
+  <section>
+    <h2 data-i18n="export.title"></h2>
+    <p data-i18n="export.help"></p>
+    <a id="export" class="button" href="api/v1/admin/export" download data-i18n="export.download"></a>
+  </section>
+
+  <section>
+    <h2 data-i18n="import.title"></h2>
+    <p data-i18n="import.help"></p>
+    <input type="file" id="import-file" accept="application/json,.json">
+    <button id="import" data-i18n="import.run"></button>
+  </section>
+
+  <p id="message" role="status"></p>
+  <script src="web/app.js"></script>
+</body>
+</html>

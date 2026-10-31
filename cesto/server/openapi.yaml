@@ -1,0 +1,442 @@
+openapi: 3.1.0
+info:
+  title: Cesto add-on API
+  version: 1.0.0
+  description: |
+    HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
+
+    Two ways in:
+    - LAN (at home): `http://<ha-host>:8099/api/v1`, add-on bearer token (`cesto_...`, one per device, created on the add-on page). Full API.
+    - Remote (away from home): through Home Assistant ingress on the external HA URL, authenticated by Home Assistant
+      (`ingress_session` cookie obtained with an HA long-lived token, see docs/remote-access.md). ONLY the operations
+      tagged `remote` (shared list API) are reachable; everything else (basket, cart preview/apply, jobs, photos,
+      promotions, preferences, habits) answers 403 `error.remote_forbidden`. The supermarket connectors are never exposed over HTTP.
+      The author of remote edits is the Home Assistant user's display name; no add-on token is needed.
+servers:
+  - url: http://homeassistant.local:8099/api/v1
+    description: LAN, add-on bearer token, full API
+  - url: "{ha_external_url}/api/hassio_ingress/{ingress_token}/api/v1"
+    description: Remote through HA ingress (cookie ingress_session), list API only
+    variables:
+      ha_external_url: { default: "https://ha.example.org" }
+      ingress_token: { default: "from supervisor /addons/75545ee1_cesto/info -> ingress_url" }
+security:
+  - bearer: []
+  - haIngress: []
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, description: "Add-on token (LAN only)" }
+    haIngress: { type: apiKey, in: cookie, name: ingress_session, description: "Home Assistant ingress session (remote, list API only)" }
+  schemas:
+    Promotions:
+      type: object
+      required: [source, provider, generated_at, suggestions, ai_error]
+      properties:
+        source: { type: string, enum: [ai, search] }
+        provider: { type: string, enum: [none, openai, anthropic] }
+        generated_at: { type: string, format: date-time }
+        ai_error: { type: [string, "null"], description: "error.ai_failed when the AI failed and the search fallback was used" }
+        suggestions:
+          type: array
+          items:
+            type: object
+            required: [item_id, item_name, query, product, reason]
+            properties:
+              item_id: { type: integer }
+              item_name: { type: string }
+              query: { type: string, description: "category or item name searched" }
+              reason: { type: [string, "null"], description: "AI explanation (add-on language); null without AI" }
+              product:
+                type: object
+                required: [product_id, name, package_text, price, image_url, promotions]
+                properties:
+                  product_id: { type: string }
+                  name: { type: string }
+                  package_text: { type: [string, "null"] }
+                  price: { type: [object, "null"], description: "{amount {currency, minorUnits}, per item|piece|kg|l}" }
+                  image_url: { type: [string, "null"] }
+                  promotions: { type: array, items: { type: object, description: "{kind recommended_price|immediate_discount|multi_buy|nth_unit_discount|other, label, bundle?, nthUnit?, percentOff?}" } }
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message_key]
+          properties: { code: { type: string }, message_key: { type: string } }
+    Health:
+      type: object
+      required: [version, test_mode, session_valid, queue_length]
+      properties:
+        version: { type: string }
+        test_mode: { type: boolean }
+        session_valid: { type: [boolean, "null"] }
+        queue_length: { type: integer }
+    Token:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string, enum: [phone, app] }
+        created_at: { type: string }
+        last_used_at: { type: [string, "null"] }
+        revoked_at: { type: [string, "null"] }
+    Item:
+      type: object
+      properties:
+        id: { type: integer }
+        list_id: { type: integer }
+        client_id: { type: [string, "null"] }
+        name: { type: string }
+        quantity: { type: [number, "null"] }
+        unit: { type: [string, "null"], enum: [un, kg, g, l, ml, null] }
+        note: { type: [string, "null"] }
+        category: { type: [string, "null"] }
+        added_by: { type: string, description: Name of the token that added the item }
+        state: { type: string, enum: [pending, in_cart, not_bought] }
+        deleted: { type: boolean }
+        version: { type: integer }
+        created_at: { type: string }
+        updated_at: { type: string }
+        product: { oneOf: [{ $ref: "#/components/schemas/LinkedProduct" }, { type: "null" }] }
+    LinkedProduct:
+      type: object
+      description: "Continente product the user picked for this item (photo search). The basket uses it as is, without matching again (reason 'linked')."
+      required: [product_id, name]
+      properties:
+        product_id: { type: string, pattern: "^\\d{1,20}$" }
+        name: { type: string, maxLength: 300 }
+        package_text: { type: [string, "null"] }
+        price: { type: [object, "null"], description: "{amount{currency,minorUnits}, per}" }
+        unit_price: { type: [object, "null"], description: "{amount{currency,minorUnits}, per kg|l}" }
+        image_url: { type: [string, "null"], description: https only }
+        promotions: { type: array, maxItems: 5, items: { type: object, properties: { kind: { type: string }, label: { type: string } } } }
+        barcode: { type: [string, "null"], pattern: "^\\d{6,14}$" }
+    SearchCandidate:
+      type: object
+      properties:
+        product_id: { type: string }
+        name: { type: string }
+        package_text: { type: [string, "null"] }
+        price: { type: [object, "null"] }
+        unit_price: { type: [object, "null"] }
+        image_url: { type: [string, "null"] }
+        availability: { type: string }
+        promotions: { type: array, items: { type: object } }
+    ItemInput:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        quantity: { type: [number, "null"], exclusiveMinimum: 0 }
+        unit: { type: [string, "null"], enum: [un, kg, g, l, ml, null] }
+        note: { type: [string, "null"] }
+        category: { type: [string, "null"] }
+        state: { type: string, enum: [pending, in_cart, not_bought] }
+        client_id: { type: string, description: Client-generated id; repeated creates with the same id are idempotent }
+        updated_at: { type: string, format: date-time, description: "Client edit time for last-write-wins; older than the stored value = ignored; future times are clamped to server time" }
+        product: { oneOf: [{ $ref: "#/components/schemas/LinkedProduct" }, { type: "null" }], description: "Link a Continente product (null unlinks)" }
+    List:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        status: { type: string, enum: [active, archived] }
+        created_at: { type: string }
+        updated_at: { type: string }
+    Snapshot:
+      type: object
+      properties:
+        list: { $ref: "#/components/schemas/List" }
+        version: { type: integer, description: Global change sequence; pass as `since` for delta sync }
+        items: { type: array, items: { $ref: "#/components/schemas/Item" } }
+    ParsedItem:
+      type: object
+      properties:
+        name: { type: string }
+        quantity: { type: [number, "null"] }
+        unit: { type: [string, "null"] }
+        raw: { type: string }
+paths:
+  /health:
+    get:
+      tags: [remote]
+      security: []
+      summary: Server status (no auth)
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Health" } } } } }
+  /openapi.yaml:
+    get:
+      tags: [remote]
+      security: []
+      summary: This document
+      responses: { "200": { description: OK } }
+  /me:
+    get:
+      tags: [remote]
+      summary: The calling token
+      responses:
+        "200": { description: OK }
+        "401": { description: Missing or invalid token, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /admin/tokens:
+    get:
+      summary: List tokens (HA ingress only)
+      security: []
+      responses: { "200": { description: OK }, "403": { description: Not from ingress } }
+    post:
+      summary: Create a token (HA ingress only); the plain token is returned once
+      security: []
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [name, kind], properties: { name: { type: string }, kind: { type: string, enum: [phone, app] } } } } }
+      responses: { "201": { description: Created }, "400": { description: Invalid }, "403": { description: Not from ingress } }
+  /admin/tokens/{id}:
+    delete:
+      summary: Revoke a token (HA ingress only)
+      security: []
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "204": { description: Revoked }, "404": { description: Not found }, "403": { description: Not from ingress } }
+  /lists/current:
+    get:
+      tags: [remote]
+      summary: Current household list with all non-deleted items
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Snapshot" } } } } }
+  /lists/current/changes:
+    get:
+      tags: [remote]
+      summary: Delta sync; items (including deleted) changed after `since`. If `list.id` differs from the cached one, reload fully.
+      parameters: [{ name: since, in: query, required: true, schema: { type: integer, minimum: 0 } }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Snapshot" } } } }, "400": { description: Invalid since } }
+  /lists/current/items:
+    post:
+      tags: [remote]
+      summary: Add an item (added_by = token name)
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/ItemInput" } } } }
+      responses: { "201": { description: Created }, "200": { description: Already created with this client_id }, "400": { description: Invalid } }
+  /items/{id}:
+    patch:
+      tags: [remote]
+      summary: Edit an item (last write wins); response has `applied` false when the edit was older than the stored one
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/ItemInput" } } } }
+      responses: { "200": { description: Item after the edit attempt }, "404": { description: Not found } }
+    delete:
+      tags: [remote]
+      summary: Delete an item (soft delete, propagates through delta sync)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: updated_at, in: query, required: false, schema: { type: string, format: date-time } }
+      responses: { "204": { description: Deleted }, "404": { description: Not found }, "409": { description: Stale delete (item edited later) } }
+  /lists/current/parse:
+    post:
+      tags: [remote]
+      summary: Parse free text (pt-PT) into proposed items; nothing is saved
+      requestBody: { content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, maxLength: 20000 } } } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/ParsedItem" } } } } } } } }
+  /lists/current/clear:
+    post:
+      tags: [remote]
+      summary: Clear items in the cart or all items of the current list
+      requestBody: { content: { application/json: { schema: { type: object, required: [scope], properties: { scope: { type: string, enum: [in_cart, all] } } } } } }
+      responses: { "200": { description: OK }, "400": { description: Invalid scope } }
+  /lists:
+    post:
+      tags: [remote]
+      summary: Archive the current list into history and start a new one
+      responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Snapshot" } } } } }
+  /lists/history:
+    get:
+      tags: [remote]
+      summary: Archived lists, newest first
+      responses: { "200": { description: OK } }
+  /lists/history/{id}/repeat:
+    post:
+      tags: [remote]
+      summary: Copy an archived list's items into the current list as pending (the cart is only reached through the preview)
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: OK }, "404": { description: Not found } }
+  /admin/status:
+    get:
+      summary: Add-on status for the ingress page (HA ingress only)
+      security: []
+      responses: { "200": { description: "version, test_mode, language, session_valid, queue_length, credentials {configured, masked email}, login {state, started_at}" }, "403": { description: Not from ingress } }
+  /admin/credentials:
+    put:
+      summary: Save the Continente account to /data/continente/credentials.env (0600); the password is never returned (HA ingress only)
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, password], properties: { email: { type: string }, password: { type: string, writeOnly: true } } } } } }
+      responses: { "204": { description: Saved; the MCP process restarts on its next call }, "400": { description: Invalid }, "403": { description: Not from ingress } }
+    delete:
+      summary: Remove the saved Continente account (HA ingress only)
+      security: []
+      responses: { "204": { description: Removed }, "404": { description: None saved } }
+  /admin/login:
+    get:
+      summary: State of the on-demand sign-in session (HA ingress only)
+      security: []
+      responses: { "200": { description: "state: idle | starting | waiting_user | succeeded | failed | timed_out | cancelled" } }
+    post:
+      summary: Start a sign-in session (virtual display, noVNC at ./vnc/, visible browser) to complete the CAPTCHA (HA ingress only)
+      security: []
+      responses: { "202": { description: Started }, "409": { description: No saved account }, "503": { description: Not available } }
+    delete:
+      summary: Cancel the sign-in session (HA ingress only)
+      security: []
+      responses: { "204": { description: Cancelled } }
+  /admin/session/check:
+    post:
+      summary: Check the Continente session with a read-only account call, get_cart (HA ingress only)
+      security: []
+      responses: { "200": { description: session_valid } }
+  /admin/export:
+    get:
+      summary: Download lists with items, purchase runs and shared preferences as JSON; no tokens or credentials (HA ingress only)
+      security: []
+      responses: { "200": { description: JSON attachment } }
+  /admin/import:
+    post:
+      summary: One-time import of a cesto-export (or legacy continente-mcp-export) into an empty add-on (HA ingress only)
+      security: []
+      responses:
+        "200": { description: "imported {lists, items, runs, preferences}" }
+        "400": { description: error.import_format }
+        "409": { description: error.import_not_empty }
+  /admin/pair:
+    post:
+      summary: Create one token for a device and return it with a cesto://pair link and its QR code as SVG (HA ingress only)
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, required: [name, address], properties: { name: { type: string }, address: { type: string, description: "http(s) origin on the home network" } } } } } }
+      responses:
+        "201": { description: "{id, name, kind, token, address, uri, qr_svg}; the token is shown only here" }
+        "400": { description: error.invalid_address or error.invalid_token_request }
+  /admin/connectors:
+    get:
+      summary: Enabled supermarket connectors (HA ingress only)
+      security: []
+      responses: { "200": { description: "{connectors[]}" } }
+  /connectors:
+    get:
+      tags: [remote]
+      summary: Enabled supermarket connectors with optional capabilities (promotions, purchase_history, barcode_lookup), default_store and mode (simple|multi). Also remote.
+      responses: { "200": { description: "{connectors[{id, name, capabilities[], session_valid}], default_store, mode}" } }
+  /basket/proposals:
+    post:
+      summary: Match the pending items of the current list to Continente products (preference > frequent > favourite > search). Read-only on the account.
+      requestBody: { content: { application/json: { schema: { type: object, properties: { item_ids: { type: array, items: { type: integer } }, store: { type: string, description: "connector id; default the first enabled. One cart per supermarket." } } } } } }
+      responses:
+        "201": { description: "Proposal {proposal_id, list_id, lines[]}; each line has selected, options (2-4 for generic items, up to 3 alternatives when out of stock), unavailable, needs_choice, quantity, quantity_basis (units|packs|weighed_pieces|weight|default), promo, skipped, error" }
+        "409": { description: nothing pending to match }
+        "503": { description: MCP not available }
+  /basket/proposals/{id}:
+    get:
+      summary: Get a stored proposal
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: proposal }, "404": { description: not found } }
+  /basket/proposals/{id}/lines/{item_id}:
+    patch:
+      summary: Choose a product, change the cart quantity, or skip a line
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: item_id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { product_id: { type: string }, quantity: { type: number }, skip: { type: boolean } } } } } }
+      responses: { "200": { description: updated proposal }, "400": { description: invalid }, "404": { description: not found } }
+  /preferences:
+    get:
+      summary: Shared household product preferences, by normalised item key
+      responses: { "200": { description: "{preferences: [{item_key, product_id, quantity, updated_by, updated_at}]}" } }
+  /preferences/{item_key}:
+    put:
+      summary: Set the preferred product for an item name (shared by all users)
+      parameters: [{ name: item_key, in: path, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [product_id], properties: { product_id: { type: string }, quantity: { type: number, nullable: true } } } } } }
+      responses: { "200": { description: preference }, "400": { description: invalid } }
+    delete:
+      summary: Forget a preference
+      parameters: [{ name: item_key, in: path, required: true, schema: { type: string } }]
+      responses: { "204": { description: removed }, "404": { description: not found } }
+  /promotions:
+    get:
+      summary: "Promotion suggestions for the pending list items, to show before the cart preview. Read-only (search_products only), never touches the cart or checkout. LAN only."
+      description: |
+        For each pending item (max 20) the server searches its category (or its name when it has no category) and keeps
+        available products that have promotions (max 3 per item). If an AI provider is configured (add-on options
+        ai_provider/ai_api_key/ai_model) it picks the most relevant of those candidates and adds a short reason in the
+        add-on language; if not configured or it fails, the plain search result is returned (source=search; ai_error set when it failed).
+      responses:
+        "200":
+          description: suggestions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Promotions" }
+        "503": { description: "Continente MCP unavailable (error.mcp_unavailable)" }
+  /habits:
+    get:
+      summary: Cached purchase habits (frequently bought + favourites, refreshed every 24 h)
+      responses: { "200": { description: habits } }
+  /habits/refresh:
+    post:
+      summary: Refresh purchase habits from the account now (read-only calls)
+      responses: { "200": { description: habits } }
+  /basket/proposals/{id}/preview:
+    post:
+      summary: "Read-only preview: get_cart + preview_cart_changes. merge adds to the current cart quantities; replace lists what clear_cart would remove. Required before apply."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { mode: { type: string, enum: [merge, replace], default: merge } } } } } }
+      responses:
+        "200": { description: "Preview {preview_id, mode, test_mode, items[{item_id, product_id, name, current, add, desired}], removed[{productId, quantity}], estimated_cost ({currency, minorUnits} or null), problems[{product_id, name, availability, error_key}] (always a list)}" }
+        "409": { description: "choices pending, nothing to apply, or session expired" }
+  /basket/proposals/{id}/apply:
+    post:
+      summary: "Apply the latest preview as a background job (set_cart_item_quantity with exact totals; clear_cart first for replace). In test mode nothing is sent and the job is 'simulated'. Never checks out or pays."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [preview_id], properties: { preview_id: { type: string } } } } } }
+      responses: { "202": { description: job }, "409": { description: "preview missing or stale (proposal changed since)" } }
+  /jobs/{id}:
+    get:
+      summary: "Apply job: status queued|running|waiting_session|done|simulated|needs_attention|failed; lines[{item_id, product_id, name, desired, outcome confirmed|not_applied|unknown|simulated, in_cart, found_quantity}], progress{step connect|clear|adding|verifying|done, done, total, current (product name), verify_attempt}, missing[{item_id, product_id, name, desired, found_quantity}], retry_of, cart_after, message_key. After the writes the cart is read back up to 4 times (waiting 1, 2, 4, 8 s) until every line is present with at least its quantity; an unknown outcome stops the job (no replay) and reads the cart."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: job }, "404": { description: not found } }
+  /jobs/{id}/retry-missing:
+    post:
+      summary: "Try adding what is missing: a new job (merge, set_cart_item_quantity with exact totals) for the missing lines of a needs_attention job, then read back again. Test mode simulates. Never checks out or pays. LAN only."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "202": { description: job (retry_of = the original job) }, "404": { description: not found }, "409": { description: "nothing to retry (error.nothing_to_retry)" } }
+  /catalog/search:
+    post:
+      summary: "Search Continente for a product read from a photo (user-triggered; may take a few seconds). Barcode first, then the composed name. Read-only (search_products), never touches the cart. LAN only."
+      requestBody: { content: { application/json: { schema: { type: object, properties: { query: { type: string, maxLength: 120 }, barcode: { type: string, pattern: "^\\d{6,14}$" } } } } } }
+      responses:
+        "200":
+          description: candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query: { type: string }
+                  barcode: { type: [string, "null"] }
+                  matched_by: { type: [string, "null"], enum: [barcode, name, null] }
+                  candidates: { type: array, maxItems: 8, items: { $ref: "#/components/schemas/SearchCandidate" } }
+        "400": { description: "error.invalid_query / error.invalid_barcode" }
+        "409": { description: "error.session_expired" }
+        "503": { description: "error.mcp_unavailable" }
+  /photos:
+    post:
+      summary: "Identify a product: barcode (EAN read on the phone) first, then packaging text (OCR on the phone), then the vision provider (only 'none' in v1, so the image is never sent anywhere). The original image is never stored; an optional thumbnail (JPEG/PNG, max 64 KB) is kept until deleted. Candidates are for adding to the list, never the cart."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                barcode: { type: string, description: "EAN-8/12/13/14 with valid check digit" }
+                text: { type: string, maxLength: 2000 }
+                image_base64: { type: string }
+                thumbnail_base64: { type: string }
+      responses:
+        "200": { description: "{photo_id, source barcode|text|vision|none, query, candidates[{product_id, name, package_text, image_url, availability}] (max 5), thumbnail}" }
+        "400": { description: invalid input }
+  /photos/{id}/thumbnail:
+    get:
+      summary: The stored thumbnail
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: image }, "404": { description: not found } }
+  /photos/{id}:
+    delete:
+      summary: Delete the photo thumbnail
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "204": { description: deleted }, "404": { description: not found } }

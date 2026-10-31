@@ -1,6 +1,45 @@
-# continente-mcp-ha
+# Cesto for Home Assistant
 
-Home Assistant add-on that acts as the central server for the [assistente-compras](https://github.com/jpch/assistente-compras) app. It runs the unofficial Continente MCP and stores the household's shared shopping list.
+**Cesto** is a self-hosted shared shopping list that prepares your supermarket cart. This repository is the
+Home Assistant add-on (slug `cesto`), which is the only server: each household runs its own, and nothing is
+hosted by anyone else. The Android app is installed from GitHub releases with [Obtainium](https://github.com/ImranR98/Obtainium)
+(`https://github.com/jpch/cesto-releases`).
+
+Cesto fills the cart and stops there: it can never check out, pay or place an order.
+
+## Supermarkets (connectors)
+
+The add-on has a common core (shared list, preferences, preview, cart orchestration) and one connector per
+supermarket. Every connector must provide product search, cart read/add and its own sign-in; promotions,
+purchase history and barcode lookup are optional and declared per connector (`GET /api/v1/connectors`), and the
+app hides what a connector does not support. Enable connectors in the add-on options (`connectors`).
+
+| Connector | Search, cart, sign-in | Promotions | Purchase history | Barcode |
+| --- | --- | --- | --- | --- |
+| `continente` (unofficial [continentept-mcp](https://github.com/andredelgado/continente-mcp)) | yes | yes | yes | yes |
+
+Each list item can have a preferred supermarket (`store`), learned from your choices and editable; preparing the
+basket creates one cart per supermarket (`POST /api/v1/basket/proposals` with `store`). Supermarket passwords stay
+in the add-on only; the app never sees them.
+
+## Connecting a phone
+
+1. Open the add-on page (Home Assistant sidebar → Cesto), section **Ligar um telemóvel**.
+2. Enter a device name and check the home network address (default: the host you opened Home Assistant on, port 8099).
+3. Scan the QR code in the app's first-run wizard. Each phone gets its own token, which you can revoke on the same page.
+
+The app can also find the add-on on the home network (it looks for Home Assistant via mDNS and checks port 8099),
+or you can type the address and token by hand. List and preferences are shared by the whole household.
+
+## Migrating from the Continente MCP add-on
+
+The add-on used to be called "Continente MCP" (slug `continente_mcp`). A new slug means a new add-on:
+
+1. Install **Cesto** from this repository and start it (it starts empty, in test mode unless you turn it off).
+2. On the old add-on page, **Exportar** the data; on the Cesto page, **Importar dados** with that file (only works while Cesto is empty).
+   Lists, items, purchase history and preferences are kept. Tokens and Continente credentials are not exported.
+3. Enter the Continente account on the Cesto page and sign in once (noVNC window).
+4. Stop the old add-on. Uninstall it once you are happy.
 
 ## Remote access (list only)
 
@@ -48,9 +87,9 @@ The add-on never checks out or pays: you finish the order in the Continente app 
 
 ## Repository layout
 
-- `continente_mcp/`: the add-on (Debian trixie base, Node.js 22, `continentept-mcp` pinned, Playwright Chromium baked into the image, plus Xvnc/noVNC for the sign-in window).
-- `continente_mcp/server/`: add-on HTTP API (Node.js 22, TypeScript, Fastify, built-in `node:sqlite`). Contract: [`openapi.yaml`](continente_mcp/server/openapi.yaml), served at `/api/v1/openapi.yaml`. Unit tests (Vitest) run inside the image build on both architectures.
-- `continente_mcp/rootfs/opt/smoke/`: headless smoke test that calls the read-only `search_products` tool. It never touches the cart.
+- `cesto/`: the add-on (Debian trixie base, Node.js 22, `continentept-mcp` pinned, Playwright Chromium baked into the image, plus Xvnc/noVNC for the sign-in window).
+- `cesto/server/`: add-on HTTP API (Node.js 22, TypeScript, Fastify, built-in `node:sqlite`). Contract: [`openapi.yaml`](cesto/server/openapi.yaml), served at `/api/v1/openapi.yaml`. Unit tests (Vitest) run inside the image build on both architectures.
+- `cesto/rootfs/opt/smoke/`: headless smoke test that calls the read-only `search_products` tool. It never touches the cart.
 - `.github/workflows/build.yaml`: builds for `aarch64` and `amd64` and runs the smoke test.
 - `docs/`: architecture and task list.
 
@@ -59,8 +98,8 @@ Supported architectures: `aarch64` (e.g. Raspberry Pi 5) and `amd64`. `armv7` is
 Run the smoke test locally:
 
 ```sh
-docker build -t continente-mcp:test continente_mcp
-docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c continente-mcp:test smoke.mjs
+docker build -t cesto:test cesto
+docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c cesto:test smoke.mjs
 ```
 
 ## API basics
@@ -70,7 +109,7 @@ docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c co
 - Errors are `{"error": {"code", "message_key"}}`: clients translate the key, so the server never returns user-facing text.
 - Data lives in `/data/app.db` (SQLite, included in HA backups).
 
-### Continente MCP client, cart safety and test mode
+### Continente connector, cart safety and test mode
 
 - **Hard tool policy** (`server/src/mcp/tools.ts`): only the 11 read tools and the 4 cart tools of continentept-mcp 0.12.1 are allowed. Anything else, and any name that mentions checkout, payment, placing/confirming an order, purchase, delivery slots, vouchers, coupons, billing or cards, is refused with `ForbiddenToolError` before it reaches the MCP. It is enforced on the stdio transport itself, in `TestModeGuard` and in `ContinenteMcp`; there is no option to turn it off. continentept-mcp 0.12.1 has no checkout tool, and the allowlist keeps it that way if a future release adds one. `server/test/policy.test.ts` proves it with test mode off.
 
@@ -93,8 +132,8 @@ Open the add-on from the Home Assistant sidebar ("Open web UI"). The page is in 
 - Status: version, test-mode banner, Continente session (with a "check session" button that does a read-only `get_cart`), queue length.
 - Continente account: email and password are written to `/data/continente/credentials.env` (0600, folder 0700). The password is never shown or returned; the page only shows a masked email.
 - Sign in: starts, on demand, a virtual display (TigerVNC `Xvnc`), `websockify` + noVNC (proxied under `./vnc/`) and `continentept-mcp login --show-browser`. If Continente asks "Não sou um robô", tick it in the embedded window. Everything stops when the session is saved, on failure, on cancel or after 6 minutes; the MCP process then restarts to use the new session.
-- Tokens: create (shown once), list and revoke phone/app tokens.
-- Export: downloads lists, items, purchase runs and shared preferences as JSON (no tokens or credentials).
+- Connect a phone: one token per device, shown once as a QR code with the home network address; list and revoke tokens.
+- Export and import: lists, items, purchase runs and shared preferences as JSON (no tokens or credentials). Import only into an empty add-on.
 
 ### Home Assistant entities
 
@@ -112,15 +151,15 @@ When the Continente session expires, a persistent notification links to the add-
 Run the server tests locally:
 
 ```sh
-cd continente_mcp/server && npm ci && npm test
+cd cesto/server && npm ci && npm test
 ```
 
 ## Installation
 
-A tested installation on a Raspberry Pi 5 (HA OS 18.2) is described in [docs/t14-pi-install.md](docs/t14-pi-install.md).
+In Home Assistant, open the add-on store, add this repository (`https://github.com/jpch/cesto-ha`) and install the add-on. Home Assistant pulls a prebuilt image (`ghcr.io/jpch/{arch}-cesto`, aarch64 and amd64) published by CI on every push to `main` and on `v*` tags, so nothing is built on the device.
 
-In Home Assistant, open the add-on store, add this repository (`https://github.com/jpch/continente-mcp-ha`) and install the add-on. Home Assistant pulls a prebuilt image (`ghcr.io/jpch/{arch}-continente-mcp`, aarch64 and amd64) published by CI on every push to `main` and on `v*` tags, so nothing is built on the device.
+Warning: the Continente connector uses an unofficial MCP; Cesto is not affiliated with any supermarket.
 
-Warning: uses an unofficial MCP, not affiliated with Continente.
+Licence: [MIT](LICENSE). Contributions: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 See the [CHANGELOG](CHANGELOG.md) for the change history.

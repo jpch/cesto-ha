@@ -41,7 +41,7 @@ Home Assistant Core 2026.10.2, Supervisor 2026.10.5:
 
 1. Open `wss://<external-ha-url>/api/websocket`. Wait for `auth_required`, send
    `{"type":"auth","access_token":"<HA long-lived token>"}`, expect `auth_ok`.
-2. `{"id":1,"type":"supervisor/api","endpoint":"/addons/75545ee1_continente_mcp/info","method":"get"}` and take
+2. `{"id":1,"type":"supervisor/api","endpoint":"/addons/75545ee1_cesto/info","method":"get"}` and take
    `result.ingress_url` (e.g. `/api/hassio_ingress/AbC.../`). Cache it; it only changes if the add-on is reinstalled.
 3. `{"id":2,"type":"supervisor/api","endpoint":"/ingress/session","method":"post"}` and take `result.session`.
 4. Call `https://<external-ha-url><ingress_url>api/v1/lists/current` (and the other `remote` operations) with
@@ -51,7 +51,7 @@ Home Assistant Core 2026.10.2, Supervisor 2026.10.5:
    On HTTP 401 from ingress, create a new session (step 3). On 403 `error.remote_forbidden`, the screen is LAN-only:
    hide it away from home.
 
-## Setup for Alex
+## Setup
 
 1. Make sure Home Assistant has an external URL that works (Cloudflared add-on or Nabu Casa), set in
    Settings > System > Network > Home Assistant URL > Internet.
