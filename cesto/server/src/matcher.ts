@@ -1,12 +1,13 @@
 import { itemKey, tokens, type CatalogReader, type Product, type Qty } from './catalog.js';
 import type { Habits, PreferenceStore } from './habits.js';
 import type { LinkedProduct } from './lists.js';
+import { thumbnailUrl } from './thumbnails.js';
 
 export interface MatchItem { id: number; name: string; quantity: number | null; unit: string | null; product?: LinkedProduct | null }
 export type Reason = 'linked' | 'preference' | 'frequent' | 'favorite' | 'search';
 export interface Option {
   product_id: string; name: string; package_text: string | null; price: Product['price'] | null;
-  availability: string; image_url: string | null; promotions: Product['promotions']; reason: Reason;
+  availability: string; image_url: string | null; thumbnail_url: string | null; promotions: Product['promotions']; reason: Reason;
 }
 export interface PromoSuggestion { kind: 'multi_buy' | 'nth_unit_discount'; label: string; suggested_quantity: number }
 export interface Line {
@@ -32,7 +33,7 @@ export interface Line {
 
 const toOption = (p: Product, reason: Reason): Option => ({
   product_id: p.productId, name: p.name, package_text: p.packageText ?? null, price: p.price ?? null,
-  availability: p.availability ?? 'unknown', image_url: p.imageUrl ?? null, promotions: p.promotions ?? [], reason,
+  availability: p.availability ?? 'unknown', image_url: p.imageUrl ?? null, thumbnail_url: thumbnailUrl(p.imageUrl), promotions: p.promotions ?? [], reason,
 });
 
 const toBase = (q: Qty | { value: number; unit: string }): { value: number; dim: 'mass' | 'volume' | 'count' } | null => {
