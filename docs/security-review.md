@@ -78,3 +78,11 @@ Reviewed 2026-10-31 before release. Scope: asynchronous basket proposals. Verdic
 | 33 | Resource use | A client could start runs repeatedly; only one async run exists at a time (a new request joins it), runs are serialized on the single MCP queue, and failed entries expire after 10 minutes. Requires a valid token. | Low | Accepted |
 | 34 | Information leak | A failed run reports only a fixed message key and HTTP status, never the raw upstream error text. | None | OK |
 
+
+## Cesto 1.3.2 (add-on `cesto` 1.3.2)
+
+Reviewed 2026-10-31 before release. Scope: logging of slow requests. Verdict: **no findings; release allowed.**
+
+| # | Area | Finding | Severity | Status |
+|---|---|---|---|---|
+| 35 | Logging | Slow successful requests use the existing access-line format (method, path without query, status, LAN/ingress, token id, duration); no token, body or personal data is written. | None | OK |
