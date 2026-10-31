@@ -16,8 +16,8 @@ export function normaliseAddress(input: unknown): string {
 }
 
 /** cesto://pair link read by the app's QR scanner (decision 67). */
-export const pairingUri = (address: string, token: string) =>
-  `cesto://pair?address=${encodeURIComponent(address)}&token=${encodeURIComponent(token)}`;
+export const pairingUri = (address: string, token: string, slug?: string | null) =>
+  `cesto://pair?address=${encodeURIComponent(address)}&token=${encodeURIComponent(token)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
 
 /** QR code as a self-contained SVG (no external requests). */
 export function qrSvg(text: string): string {
