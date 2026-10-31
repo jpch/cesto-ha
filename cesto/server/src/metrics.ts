@@ -58,7 +58,7 @@ export class Metrics {
   readonly calls: Ring<CallRecord>;
   readonly jobs: Ring<JobRecord>;
   private readonly context = new AsyncLocalStorage<JobContext>();
-  private readonly errorCounts: Record<string, number> = {};
+  private readonly errorCounts: Record<string, number> = Object.create(null) as Record<string, number>;
   private sessionLost = 0;
   private throttled = 0;
   private signInFailures = 0;
@@ -97,14 +97,16 @@ export class Metrics {
   /** Records one MCP call (from TimedTransport). */
   call(tool: string, ms: number, result: ToolResult | null, error?: unknown): void {
     this.lastCall = this.now();
-    const code = error ? 'exception' : result?.status === 'error' ? (result.error?.code ?? 'error') : null;
+    const raw = error ? 'exception' : result?.status === 'error' ? (result.error?.code ?? 'error') : null;
+    // Upstream text never reaches the log or the counters verbatim: short snake_case codes only, bounded key count.
+    const code = raw === null ? null : /^[a-z_]{1,40}$/.test(raw) ? raw : 'error';
     const ctx = this.context.getStore();
     if (ctx) {
       ctx.calls++; ctx.mcpMs += ms;
       const s = (ctx.steps[tool] ??= { calls: 0, ms: 0 });
       s.calls++; s.ms += ms;
     }
-    if (code) this.errorCounts[code] = (this.errorCounts[code] ?? 0) + 1;
+    if (code && (code in this.errorCounts || Object.keys(this.errorCounts).length < 32)) this.errorCounts[code] = (this.errorCounts[code] ?? 0) + 1;
     if (code && SESSION_CODES.has(code)) this.sessionLost++;
     const message = result?.error?.message ?? (error instanceof Error ? error.message : '');
     if (code && THROTTLE_PATTERN.test(message)) this.throttled++;

@@ -109,6 +109,14 @@ describe('Metrics', () => {
     expect(s.captcha_or_sign_in_failures).toBe(1);
   });
 
+  it('sanitises upstream error codes before logging or counting them', () => {
+    const lines: string[] = [];
+    const m = new Metrics(new LogLimiter(l => lines.push(l)), true);
+    m.call('get_cart', 1, { status: 'error', error: { code: 'x\n[cesto] forged __proto__', message: '' } });
+    expect(lines[0]).toBe('[cesto] mcp tool=get_cart ms=1 error=error');
+    expect(m.snapshot({ length: 0 }).errors).toEqual({ error: 1 });
+  });
+
   it('job line format is stable', () => {
     expect(jobLine({ at: '', label: 'apply', priority: 'user', wait_ms: 0, run_ms: 5, calls: 0, mcp_ms: 0, cache_hits: 0, steps: {}, ok: false }))
       .toBe('[cesto] job=apply prio=user failed wait_ms=0 run_ms=5 calls=0 mcp_ms=0 cache_hits=0 steps=-');
