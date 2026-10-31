@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [Unreleased]
+### Changed
+- OpenAPI: `GET /connectors` documents its response schema (`ConnectorsResponse`, `Connector`).
+- GitHub Actions pinned to commit SHAs; Dependabot for npm and GitHub Actions.
+
 ## [1.0.0] - 2026-10-31
 
 Renamed to **Cesto** (repository `jpch/cesto-ha`, add-on slug `cesto`, image `ghcr.io/jpch/{arch}-cesto`). The new slug installs as a new add-on: export from the old one and import here (see README), then sign in to Continente once.

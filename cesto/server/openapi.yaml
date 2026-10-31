@@ -98,6 +98,21 @@ components:
         created_at: { type: string }
         updated_at: { type: string }
         product: { oneOf: [{ $ref: "#/components/schemas/LinkedProduct" }, { type: "null" }] }
+    Connector:
+      type: object
+      required: [id, name, capabilities]
+      properties:
+        id: { type: string, description: "connector id, e.g. continente" }
+        name: { type: string }
+        capabilities: { type: array, items: { type: string, enum: [promotions, purchase_history, barcode_lookup] } }
+        session_valid: { type: [boolean, "null"] }
+    ConnectorsResponse:
+      type: object
+      required: [connectors, default_store, mode]
+      properties:
+        connectors: { type: array, items: { $ref: "#/components/schemas/Connector" } }
+        default_store: { type: string }
+        mode: { type: string, enum: [simple, multi] }
     LinkedProduct:
       type: object
       description: "Continente product the user picked for this item (photo search). The basket uses it as is, without matching again (reason 'linked')."
@@ -314,7 +329,10 @@ paths:
     get:
       tags: [remote]
       summary: Enabled supermarket connectors with optional capabilities (promotions, purchase_history, barcode_lookup), default_store and mode (simple|multi). Also remote.
-      responses: { "200": { description: "{connectors[{id, name, capabilities[], session_valid}], default_store, mode}" } }
+      responses:
+        "200":
+          description: Enabled connectors
+          content: { application/json: { schema: { $ref: "#/components/schemas/ConnectorsResponse" } } }
   /basket/proposals:
     post:
       summary: Match the pending items of the current list to Continente products (preference > frequent > favourite > search). Read-only on the account.
