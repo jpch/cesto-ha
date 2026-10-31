@@ -5,6 +5,7 @@ import type { CatalogReader, Product } from './catalog.js';
 import type { HabitsService } from './habits.js';
 import type { ListService } from './lists.js';
 import { Matcher, type Line } from './matcher.js';
+import { productOf } from './mcp/upstream.js';
 
 export interface Proposal { proposal_id: string; store?: string; list_id: number; created_by: string; created_at: string; updated_at: string; revision?: number; lines: Line[] }
 export class ProposalError extends Error { constructor(readonly status: number, readonly key: string) { super(key); } }
@@ -63,8 +64,8 @@ export class ProposalService {
       if (typeof input.product_id !== 'string' || !/^\d{1,20}$/.test(input.product_id)) throw new ProposalError(400, 'error.invalid_product');
       const known = [line.selected, line.unavailable, ...line.options].find(o => o?.product_id === input.product_id);
       const res = await this.catalog.getProduct(input.product_id);
-      if (res.status === 'error' || !res.data) throw new ProposalError(res.error?.code === 'not_found' ? 404 : 502, 'error.product_unavailable');
-      const product = res.data as unknown as Product;
+      const product = productOf(res);
+      if (!product) throw new ProposalError(res.error?.code === 'not_found' ? 404 : 502, 'error.product_unavailable');
       line.selected = { product_id: product.productId, name: product.name, package_text: product.packageText ?? null, price: product.price ?? null,
         availability: product.availability ?? 'unknown', image_url: product.imageUrl ?? known?.image_url ?? null,
         thumbnail_url: thumbnailUrl(product.imageUrl ?? known?.image_url), promotions: product.promotions ?? [], reason: known?.reason ?? 'search' };

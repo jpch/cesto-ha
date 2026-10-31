@@ -53,3 +53,18 @@ Reviewed 2026-10-31 before release. Scope: access log (add-on), sync fix and err
 |---|---|---|---|---|
 | 23 | Logging | The access log writes method, path without query string, status, path kind (lan/ingress), token id or `ha-user`, and a fixed auth-failure reason. Never the bearer token, cookies, `X-Remote-*` values, IP addresses or bodies; covered by `test/remote.test.ts`. Successes only at `debug`, so the log does not grow with the 30 s poll. | None | OK |
 | 24 | Dependencies | No new dependencies. | None | OK |
+
+## Cesto 1.3.0 (add-on `cesto` 1.3.0)
+
+Reviewed 2026-10-31 before release. Scope: continentept-mcp contract tests, adapter module and the automated update workflow. Verdict: **no Critical or High findings open; release allowed.**
+
+| # | Area | Finding | Severity | Status |
+|---|---|---|---|---|
+| 25 | CI token exposure | First draft ran the new upstream package (`tools/list`) in the job holding a `contents: write` token persisted in `.git/config`; a malicious release could have pushed to `main`. Fixed: upstream code runs only in jobs with `contents: read` and `persist-credentials: false` (`check`, `contract`); the writing jobs (`prepare`, `merge`, `release`) never install or run it. Top-level `permissions: {}`. | High | Fixed |
+| 26 | Supply chain | Auto-merge ships a new upstream release without a human reading its code. A compromised release with unchanged tool shapes would be built into the image (where the Continente session lives). Mitigations: 72-hour cooldown after the npm publish on scheduled runs (most malicious releases are pulled sooner), `--ignore-scripts` wherever CI runs it outside the image, the PR links the npm diff, every change is a reviewable PR/release, and Home Assistant only installs add-on updates when the user does (unless auto-update is enabled for the add-on). | Medium | Accepted (residual) |
+| 27 | Allowlist bypass | A new upstream tool (e.g. checkout or payment) cannot be reached: calls are limited to the static allowlist plus `FORBIDDEN_TOOL`, on three layers. The contract check fails CI and the image build on any new tool and the update PR is not merged; names matching the checkout/payment pattern are flagged in the PR. A test keeps the script's pattern equal to `FORBIDDEN_TOOL`. | None | OK |
+| 28 | Workflow injection | Version strings from npm or `workflow_dispatch` are validated as `x.y.z` before use; all untrusted values reach shell through environment variables, never `${{ }}` in scripts. Tool names in the PR body are restricted to identifier characters or shown escaped. `actionlint` clean. | None | OK |
+| 29 | Repository setting | The update needs "Allow GitHub Actions to create and approve pull requests". Any workflow with `pull-requests: write` could then open or approve PRs; only `upstream-bump.yaml` requests it, and `main` has no required-review rule that approval could bypass. | Low | Accepted |
+| 30 | Secrets and personal data | The live check uses an empty temporary data directory and a minimal environment, so no credentials, cookies or sessions are read. Fixtures are anonymised and a test rejects e-mails, phone numbers, IPs, tokens, long opaque strings and non-store hosts. | None | OK |
+| 31 | Dependencies | New dev dependencies `ajv` 8.20.0 and `ajv-formats` 3.0.1 (tests only, pinned, not in the image). New action `actions/setup-node` pinned by SHA. `npm audit`: 0 vulnerabilities. | None | OK |
+

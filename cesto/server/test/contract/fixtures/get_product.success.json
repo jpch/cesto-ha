@@ -1,0 +1,99 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "productId": "2000001",
+      "productSlug": "leite-uht-meio-gordo",
+      "name": "Leite UHT Meio-Gordo",
+      "url": "https://www.continente.pt/produto/leite-uht-meio-gordo-2000001.html",
+      "price": {
+        "amount": {
+          "currency": "EUR",
+          "minorUnits": 103
+        },
+        "per": "item"
+      },
+      "secondaryPrice": {
+        "amount": {
+          "currency": "EUR",
+          "minorUnits": 103
+        },
+        "per": "l"
+      },
+      "recommendedPrice": {
+        "amount": {
+          "currency": "EUR",
+          "minorUnits": 129
+        },
+        "per": "item"
+      },
+      "promotions": [
+        {
+          "kind": "immediate_discount",
+          "label": "Desconto imediato 20%",
+          "previousPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 129
+            },
+            "per": "item"
+          },
+          "percentOff": 20,
+          "amountOff": {
+            "currency": "EUR",
+            "minorUnits": 26
+          },
+          "bundle": null,
+          "nthUnit": null,
+          "validFrom": "2026-10-28",
+          "validTo": "2026-11-03"
+        }
+      ],
+      "packageText": "emb. 1 lt",
+      "package": {
+        "count": 1,
+        "each": null,
+        "net": {
+          "value": 1,
+          "unit": "l"
+        },
+        "drained": null,
+        "approximate": false
+      },
+      "minimumText": null,
+      "drainedPrice": null,
+      "unitPrice": {
+        "amount": {
+          "currency": "EUR",
+          "minorUnits": 103
+        },
+        "per": "l",
+        "basis": "website"
+      },
+      "imageUrl": "https://www.continente.pt/dw/image/v2/BDVS_PRD/on/demandware.static/-/Sites-col-master-catalog/default/images/2000001.jpg",
+      "availability": "available",
+      "saleRules": {
+        "status": "available",
+        "rules": {
+          "saleUnit": "un",
+          "storefrontUnit": "un",
+          "storefrontUnitsPerSaleUnit": 1,
+          "minimum": {
+            "value": 1,
+            "unit": "un"
+          },
+          "maximum": {
+            "value": 99,
+            "unit": "un"
+          },
+          "step": {
+            "value": 1,
+            "unit": "un"
+          }
+        }
+      },
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "catalogView": "signed_in"
+    }
+  }
+}

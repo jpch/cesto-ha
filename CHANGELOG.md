@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-31
+### Added
+- Contract tests for the bundled `continentept-mcp`: a reviewed snapshot of its `tools/list` (names, input and output schemas), anonymised recorded results for all 15 allowlisted tools (including signed-out, unknown-quantity, unavailable and unconfirmed-change cases), and tests that validate the fixtures against the upstream output schemas, our calls against the input schemas, and every adapter against the fixtures. No Continente login is needed.
+- Live contract check: CI and the Docker build start the installed package over stdio and fail if any tool was added, removed or changed.
+- Daily automated update (`upstream-bump.yaml`): opens a PR when npm has a newer `continentept-mcp` (after a 72-hour cooldown), lists new, removed or changed tools in the body, and when the contract is unchanged and the build is green, merges, publishes the images and releases the add-on. Any tool change blocks the merge for review. See `docs/upstream-updates.md`.
+
+### Changed
+- All reads of upstream result shapes moved into one module, `server/src/mcp/upstream.ts`. A cart mutation with an unrecognised outcome is now treated as `unknown` (stop and check) instead of a failure.
+- `build.yaml` can be called by other workflows and its jobs check out code without persisting git credentials.
+
 ## [1.2.1] - 2026-10-31
 ### Added
 - Access log in the add-on log: every failed API request (status 400+) is logged as one line with method, path (no query string), status, `via=lan|ingress`, the caller (`token#<id>`, `ha-user` or `anonymous`), the auth failure cause (`no token`, `unknown or revoked token`) and the duration. Successful requests are logged too with `log_level: debug`. Tokens, headers and bodies are never logged.

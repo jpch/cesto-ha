@@ -1,0 +1,66 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "productId": "2000002",
+      "productSlug": "banana",
+      "name": "Banana",
+      "url": "https://www.continente.pt/produto/banana-2000002.html",
+      "price": {
+        "amount": {
+          "currency": "EUR",
+          "minorUnits": 139
+        },
+        "per": "kg"
+      },
+      "secondaryPrice": null,
+      "recommendedPrice": null,
+      "promotions": [],
+      "packageText": "emb. 1 kg (aprox.)",
+      "package": {
+        "count": 1,
+        "each": null,
+        "net": {
+          "value": 1,
+          "unit": "kg"
+        },
+        "drained": null,
+        "approximate": true
+      },
+      "minimumText": "mín. 0,2 kg",
+      "drainedPrice": null,
+      "unitPrice": {
+        "amount": {
+          "currency": "EUR",
+          "minorUnits": 139
+        },
+        "per": "kg",
+        "basis": "website"
+      },
+      "imageUrl": "https://www.continente.pt/dw/image/v2/BDVS_PRD/on/demandware.static/-/Sites-col-master-catalog/default/images/2000002.jpg",
+      "availability": "available",
+      "saleRules": {
+        "status": "available",
+        "rules": {
+          "saleUnit": "kg",
+          "storefrontUnit": "un",
+          "storefrontUnitsPerSaleUnit": 5,
+          "minimum": {
+            "value": 0.2,
+            "unit": "kg"
+          },
+          "maximum": {
+            "value": 10,
+            "unit": "kg"
+          },
+          "step": {
+            "value": 0.2,
+            "unit": "kg"
+          }
+        }
+      },
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "catalogView": "signed_in"
+    }
+  }
+}

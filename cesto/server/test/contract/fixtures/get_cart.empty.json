@@ -1,0 +1,47 @@
+{
+  "result": {
+    "status": "empty",
+    "data": {
+      "customerAuthenticated": true,
+      "items": [],
+      "totals": {
+        "products": {
+          "currency": "EUR",
+          "minorUnits": 0
+        },
+        "bags": {
+          "currency": "EUR",
+          "minorUnits": 0
+        },
+        "deposit": {
+          "currency": "EUR",
+          "minorUnits": 0
+        },
+        "delivery": null,
+        "discounts": {
+          "currency": "EUR",
+          "minorUnits": 0
+        },
+        "grandTotal": {
+          "currency": "EUR",
+          "minorUnits": 0
+        },
+        "estimated": false
+      },
+      "checkout": {
+        "minimumOrder": {
+          "currency": "EUR",
+          "minorUnits": 5000
+        },
+        "meetsMinimum": false,
+        "entregaZero": false,
+        "freeDeliveryFrom": {
+          "currency": "EUR",
+          "minorUnits": 10000
+        },
+        "deliveryFee": "free"
+      },
+      "observedAt": "2026-10-31T09:00:00.000Z"
+    }
+  }
+}

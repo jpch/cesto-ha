@@ -6,13 +6,58 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+  # Also run by upstream-bump.yaml: PRs opened with GITHUB_TOKEN do not trigger pull_request runs.
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to build (default: the triggering ref)"
+        type: string
+        default: ""
+      publish:
+        description: Push the images to ghcr.io
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   packages: write
 
 jobs:
+  contract:
+    # continentept-mcp contract: recorded fixtures + tools/list of the pinned package over stdio.
+    # Never signs in to Continente; uses an empty data directory.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Install server dependencies
+        working-directory: cesto/server
+        run: npm ci
+      - name: Install the pinned continentept-mcp (no install scripts, no browser)
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          version=$(sed -nE 's/^ARG CONTINENTEPT_MCP_VERSION=([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' cesto/Dockerfile)
+          test -n "$version"
+          npm install -g --ignore-scripts "continentept-mcp@${version}"
+      - name: Contract tests (fixtures, adapters, allowlist)
+        working-directory: cesto/server
+        run: npx vitest run test/contract
+      - name: Live schema check (tools/list over stdio)
+        working-directory: cesto/server
+        run: |
+          set -o pipefail
+          npm run -s contract:check | tee -a "$GITHUB_STEP_SUMMARY"
+
   build:
+    needs: contract
     strategy:
       fail-fast: false
       matrix:
@@ -26,6 +71,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Read add-on version
@@ -60,8 +108,8 @@ jobs:
           docker exec smoke node --version
           docker exec -w /opt/smoke smoke node smoke.mjs
           echo "memory.peak bytes:"; docker exec smoke cat /sys/fs/cgroup/memory.peak
-      - name: Publish to ghcr.io (main and tags only)
-        if: github.event_name == 'push'
+      - name: Publish to ghcr.io (main and tags, or when called with publish)
+        if: github.event_name == 'push' || inputs.publish
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker push ghcr.io/jpch/${{ matrix.arch }}-cesto:${{ steps.meta.outputs.version }}

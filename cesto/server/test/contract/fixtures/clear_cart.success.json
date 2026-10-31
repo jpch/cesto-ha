@@ -1,0 +1,11 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "outcome": "confirmed",
+      "disposition": "cleared",
+      "removedLines": 3,
+      "observedAt": "2026-10-31T09:00:00.000Z"
+    }
+  }
+}

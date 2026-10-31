@@ -1,0 +1,20 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "productId": "2000004",
+      "requested": {
+        "value": 0,
+        "unit": "un"
+      },
+      "outcome": "confirmed",
+      "confirmedQuantity": {
+        "value": 0,
+        "unit": "un"
+      },
+      "cartItemId": "line-a3",
+      "disposition": "removed",
+      "observedAt": "2026-10-31T09:00:00.000Z"
+    }
+  }
+}
