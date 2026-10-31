@@ -18,6 +18,8 @@ export interface Config {
   port: number;
   /** Source address of the Home Assistant ingress proxy; only it may call admin routes. */
   ingressAddress: string;
+  /** This add-on's Supervisor slug (e.g. `0369824b_cesto`), used by the app to find its ingress URL; null outside HA. */
+  addonSlug?: string | null;
 }
 
 const LOG_LEVELS: readonly LogLevel[] = ['debug', 'info', 'warning', 'error'];
@@ -43,5 +45,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dataDir: env.DATA_DIR ?? '/data',
     port: Number(env.PORT ?? 8099),
     ingressAddress: env.INGRESS_ADDRESS ?? '172.30.32.2',
+    addonSlug: addonSlug(env),
   };
+}
+
+const SLUG = /^[a-z0-9]+_[a-z0-9_]+$/;
+
+/**
+ * The Supervisor names an add-on container's host `<repo>-<slug>` (underscores become dashes), e.g.
+ * `0369824b-cesto` for slug `0369824b_cesto`. `ADDON_SLUG` overrides it (tests, local runs).
+ */
+export function addonSlug(env: NodeJS.ProcessEnv): string | null {
+  if (env.ADDON_SLUG && SLUG.test(env.ADDON_SLUG)) return env.ADDON_SLUG;
+  const host = env.HOSTNAME ?? '';
+  const m = /^([a-z0-9]+)-([a-z0-9-]+)$/.exec(host);
+  if (!m) return null;
+  const slug = `${m[1]}_${m[2]!.replace(/-/g, '_')}`;
+  return SLUG.test(slug) ? slug : null;
 }
