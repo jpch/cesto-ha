@@ -7,6 +7,8 @@ export type VisionProvider = 'none';
 
 export interface Config {
   testMode: boolean;
+  /** 1.7.0: allow cart preparation (proposals, preview, apply, jobs, promotions, photos) through HA ingress. Default off. */
+  remoteCart: boolean;
   logLevel: LogLevel;
   visionProvider: VisionProvider;
   /** Optional AI provider shared by promotion suggestions and the planned vision AI. Default none. */
@@ -33,6 +35,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     // Safety: anything other than an explicit `false` keeps test mode on.
     testMode: raw.test_mode !== false,
+    // Safety: only an explicit `true` opens the cart remotely.
+    remoteCart: raw.remote_cart === true,
     logLevel,
     visionProvider: 'none',
     ai: {

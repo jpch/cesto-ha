@@ -77,6 +77,7 @@ const continente = continenteConnector(catalog, {
 
 const app = buildApp({
   accessLog: line => console.log(line),
+  remoteCartLog: line => logLimiter.log(line),
   onListChanged: publishHa,
   connectors: [continente],
   runJob: (job, options) => queue.run(job, options),

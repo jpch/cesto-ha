@@ -41,11 +41,18 @@ The add-on used to be called "Continente MCP" (slug `continente_mcp`). A new slu
 3. Enter the Continente account on the Cesto page and sign in once (noVNC window).
 4. Stop the old add-on. Uninstall it once you are happy.
 
-## Remote access (list only)
+## Remote access (list, and optionally the cart)
 
-Away from home the app reaches only the shared list API, through Home Assistant ingress on your external HA URL,
-authenticated with an HA long-lived token (a non-admin HA user is enough). The cart, basket, jobs, photos and
-promotions are never reachable remotely, and port 8099 must not be forwarded. Setup: [docs/remote-access.md](docs/remote-access.md).
+Away from home the app reaches the shared list API through Home Assistant ingress on your external HA URL,
+authenticated with an HA long-lived token (a non-admin HA user is enough). Port 8099 must not be forwarded.
+
+The cart is LAN only unless you turn on the add-on option **`remote_cart`** (1.7.0, default `false`). With it on,
+proposals, line edits, preview, apply, job polling, promotions and photos are also allowed over ingress, with the
+same HA authentication, a limit of 30 cart changes per device per minute (`429`), and one log line per remote cart
+change (`[cesto] remote_cart POST /api/v1/basket/proposals/:id/apply 202 by=ha-user:<id> 120ms`, no ids or tokens).
+Checkout, payment, order and address paths are always refused remotely (the add-on has none anyway). `/api/v1/health`
+reports `remote_cart`. Long work (matching, preview, apply) runs as jobs the app polls, so no remote request stays
+open for long. Setup and proxy timeouts: [docs/remote-access.md](docs/remote-access.md).
 
 ## Promotion suggestions
 

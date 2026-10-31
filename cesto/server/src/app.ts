@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { TokenStore, type TokenRecord } from './auth.js';
@@ -33,6 +34,8 @@ export interface AppDeps {
   config: Config;
   /** Access log sink (one line per API request; never tokens, headers, bodies or query strings). */
   accessLog?: (line: string) => void;
+  /** Remote cart mutation lines (1.7.0); defaults to accessLog. */
+  remoteCartLog?: (line: string) => void;
   db: DatabaseSync;
   version: string;
   queueLength?: () => number;
@@ -97,6 +100,31 @@ export class RateLimiter {
 
 export const REMOTE_ROUTE = /^\/api\/v1\/(health|openapi\.yaml|me|connectors|lists(\/current(\/changes|\/items|\/parse|\/clear)?|\/history(\/\d+\/repeat)?)?|items\/\d+|catalog\/search)$/;
 
+/**
+ * 1.7.0, only with the `remote_cart` option: cart preparation through ingress. Checkout, payment and address
+ * routes do not exist and are refused by [NEVER_REMOTE] before this is consulted.
+ */
+const ID = '[0-9a-f-]{36}';
+export const REMOTE_CART_ROUTE = new RegExp(
+  `^/api/v1/(basket/proposals(/${ID}(/lines/\\d{1,9}|/preview|/previews/${ID}|/apply)?)?|jobs/${ID}(/retry-missing)?|promotions(/searches(/${ID})?)?|photos(/${ID}(/thumbnail)?)?)$`,
+);
+/** Never reachable remotely, whatever the options say. */
+export const NEVER_REMOTE = /(checkout|payment|pay\b|order|address)/i;
+/** Remote cart mutations (non-GET) per device per window; polling GETs are not counted. */
+export const REMOTE_CART_LIMIT = 30;
+export const REMOTE_CART_WINDOW_MS = 60_000;
+
+/** Rate-limit and log key for a principal: token id, or the HA user id through ingress. Never a token. */
+export function deviceKey(p: { id: number; kind: string; name: string }, haUserId: unknown): string {
+  return p.kind === 'ha' ? `ha:${String(haUserId ?? p.name).slice(0, 64)}` : `token:${p.id}`;
+}
+
+/** One info line per remote cart mutation (1.5.0 style: one short `[cesto]` line, ids only). */
+export function remoteCartLine(method: string, path: string, status: number, who: string, ms: number): string {
+  const route = path.replace(new RegExp(ID, 'g'), ':id').replace(/\/\d+/g, '/:n').slice(0, 80);
+  return `[cesto] remote_cart ${method} ${route} ${status} by=${who.replace(/[^\w:#.-]/g, '_')} ${Math.round(ms)}ms`;
+}
+
 /** One access-log line. Paths only (no query string); principal by kind and token id, never the token. */
 export function accessLine(method: string, path: string, status: number, via: 'lan' | 'ingress', principal: { id: number; kind: string } | undefined, note: string | undefined, ms: number): string {
   const who = principal ? (principal.kind === 'ha' ? 'ha-user' : `token#${principal.id}`) : 'anonymous';
@@ -106,6 +134,32 @@ export function accessLine(method: string, path: string, status: number, via: 'l
 /** Requests at least this slow are logged even when they succeed: the phone's default read timeout is 30 s. */
 export const SLOW_REQUEST_MS = 10_000;
 
+/** A preview computed in the background (1.7.0). Bounded: the newest 50 runs, each kept 15 minutes. */
+export interface PreviewRun {
+  preview_run_id: string; proposal_id: string; status: 'running' | 'done' | 'failed';
+  preview: unknown; error: { status: number; message_key: string } | null; started_at: number;
+}
+export class PreviewRuns {
+  private readonly runs = new Map<string, PreviewRun>();
+  constructor(private readonly max = 50, private readonly ttlMs = 15 * 60_000, private readonly now: () => number = Date.now) {}
+  start(proposalId: string, work: () => Promise<unknown>): PreviewRun {
+    this.prune();
+    const run: PreviewRun = { preview_run_id: randomUUID(), proposal_id: proposalId, status: 'running', preview: null, error: null, started_at: this.now() };
+    this.runs.set(run.preview_run_id, run);
+    work().then(p => { run.status = 'done'; run.preview = p; }, (e: unknown) => {
+      run.status = 'failed';
+      run.error = e instanceof ProposalError ? { status: e.status, message_key: e.key } : { status: 502, message_key: 'error.mcp_unavailable' };
+    });
+    return run;
+  }
+  get(id: string): PreviewRun | undefined { this.prune(); return this.runs.get(id); }
+  private prune() {
+    const t = this.now();
+    for (const [id, r] of this.runs) if (t - r.started_at > this.ttlMs) this.runs.delete(id);
+    while (this.runs.size >= this.max) this.runs.delete(this.runs.keys().next().value!);
+  }
+}
+
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: deps.config.logLevel === 'debug' ? { level: 'debug' } : false });
   const tokens = new TokenStore(deps.db);
@@ -114,6 +168,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const isIngressAddress = (ip: string | undefined) => ip === deps.config.ingressAddress || ip === `::ffff:${deps.config.ingressAddress}`;
   const isIngress = (req: FastifyRequest) => isIngressAddress(req.ip);
   const authNote = new WeakMap<FastifyRequest, string>();
+  const remoteCart = new WeakSet<FastifyRequest>();
+  const remoteCartLimit = new RateLimiter(REMOTE_CART_LIMIT, REMOTE_CART_WINDOW_MS);
 
   app.addHook('onRequest', async (req, reply) => {
     const path = req.url.split('?')[0]!;
@@ -128,7 +184,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return;
     }
     const viaHa = isIngress(req);
-    if (viaHa && !REMOTE_ROUTE.test(path)) return reply.code(403).send(apiError('forbidden', 'error.remote_forbidden'));
+    if (viaHa) {
+      if (NEVER_REMOTE.test(path)) return reply.code(403).send(apiError('forbidden', 'error.remote_forbidden'));
+      const cartRoute = REMOTE_CART_ROUTE.test(path);
+      if (!REMOTE_ROUTE.test(path) && !(cartRoute && deps.config.remoteCart)) return reply.code(403).send(apiError('forbidden', 'error.remote_forbidden'));
+      if (cartRoute) remoteCart.add(req);
+    }
     if (PUBLIC_ROUTES.has(path)) return;
     const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '');
     let principal = match ? tokens.verify(match[1]!) : undefined;
@@ -143,6 +204,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return reply.code(401).send(apiError('unauthorized', 'error.unauthorized'));
     }
     req.principal = principal;
+    if (remoteCart.has(req) && req.method !== 'GET' && !remoteCartLimit.take(deviceKey(principal, req.headers['x-remote-user-id']))) {
+      return reply.code(429).header('retry-after', String(Math.ceil(REMOTE_CART_WINDOW_MS / 1000))).send(apiError('rate_limited', 'error.rate_limited'));
+    }
   });
 
   app.addHook('onResponse', async (req, reply) => {
@@ -150,6 +214,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     // Failures always, slow requests always (a phone may have timed out on them), other successes only at debug.
     if (deps.accessLog && path.startsWith('/api/v1/') && (reply.statusCode >= 400 || reply.elapsedTime >= (deps.slowRequestMs ?? SLOW_REQUEST_MS) || deps.config.logLevel === 'debug')) {
       deps.accessLog(accessLine(req.method, path, reply.statusCode, isIngress(req) ? 'ingress' : 'lan', req.principal, authNote.get(req), reply.elapsedTime));
+    }
+    if (remoteCart.has(req) && req.method !== 'GET' && req.principal) {
+      const p = req.principal;
+      (deps.remoteCartLog ?? deps.accessLog)?.(remoteCartLine(req.method, path, reply.statusCode, p.kind === 'ha' ? `ha-user:${String(req.headers['x-remote-user-id'] ?? '').slice(0, 12)}` : `token#${p.id}`, reply.elapsedTime));
     }
     if (req.method !== 'GET' && reply.statusCode < 400 && /^\/api\/v1\/(lists|items)(\/|$)/.test(path) && !path.endsWith('/parse')) deps.onListChanged?.();
   });
@@ -160,6 +228,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     session_valid: deps.sessionValid?.() ?? null,
     queue_length: deps.queueLength?.() ?? 0,
     addon_slug: deps.config.addonSlug ?? null,
+    remote_cart: deps.config.remoteCart,
   }));
 
   app.get('/api/v1/openapi.yaml', async (_req, reply) =>
@@ -363,6 +432,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     '/api/v1/basket/proposals/:id/lines/:item_id',
     async req => { const { proposals } = needCatalog(); return runJob(() => proposals.choose(req.params.id, Number(req.params.item_id), req.body ?? {}), { priority: 'user', label: 'line_edit' }); });
 
+  const previewRuns = new PreviewRuns();
   const basket = proposals && cart ? new BasketService(deps.db, lists, proposals, cart, prefs, () => deps.config.testMode, runJob, deps.verifyDelaysMs) : undefined;
   deps.sessionEvents?.on('session', (valid: boolean) => { if (valid) basket?.resumeWaiting(); });
   const needBasket = () => { if (!basket) throw new ProposalError(503, 'error.mcp_unavailable'); return basket; };
@@ -371,7 +441,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const mode = req.body?.mode ?? 'merge';
     if (mode !== 'merge' && mode !== 'replace') return reply.code(400).send(apiError('invalid_request', 'error.invalid_mode'));
     const b = needBasket();
+    // 1.7.0: `async: true` returns 202 at once; the phone polls /previews/:preview_run_id, so no request
+    // stays open through remote proxies while the store is read.
+    if ((req.body as { async?: unknown } | undefined)?.async === true) return reply.code(202).send(previewRuns.start(req.params.id, () => runJob(() => b.preview(req.params.id, mode), { priority: 'user', label: 'preview' })));
     return runJob(() => b.preview(req.params.id, mode), { priority: 'user', label: 'preview' });
+  });
+  app.get<{ Params: { id: string; run: string } }>('/api/v1/basket/proposals/:id/previews/:run', async (req, reply) => {
+    const r = previewRuns.get(req.params.run);
+    if (!r || r.proposal_id !== req.params.id) return reply.code(404).send(apiError('not_found', 'error.preview_not_found'));
+    return reply.code(r.status === 'running' ? 202 : 200).send(r);
   });
 
   app.post<{ Params: { id: string }; Body: { preview_id?: unknown } }>('/api/v1/basket/proposals/:id/apply', async (req, reply) =>
