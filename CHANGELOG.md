@@ -5,6 +5,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-31
+
+### Added
+- Promotion results have `items[]`: one entry per searched item with `promotions[]` (max 3) and one deduplicated
+  `cheaper[]` (max 5) compared with the **selected** product's price per kg/l (`basis`). Neither list repeats the
+  selected product, and a product is never in both lists. Without a selection the first promotion is the basis.
+- `POST /api/v1/promotions/searches` (and `GET /api/v1/promotions?proposal_id=`) take an optional `proposal_id`
+  whose selected products are the basis. A selection without a unit price is read once with `get_product` (cached).
+- Proposal options and the selected product carry `unit_price` when the shop shows one.
+
+### Changed
+- `suggestions[]` and its per-promotion `cheaper[]` are unchanged for older apps.
+
 ## [1.5.0] - 2026-10-31
 
 ### Added

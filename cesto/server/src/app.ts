@@ -413,20 +413,30 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const ai = deps.ai !== undefined ? deps.ai : createAiClient(deps.config.ai);
   const promotions = catalog ? new PromotionService(catalog, ai, deps.config.language) : undefined;
-  app.get('/api/v1/promotions', async () => {
+  app.get<{ Querystring: { proposal_id?: string } }>('/api/v1/promotions', async req => {
     if (primary) can('promotions');
     if (!promotions) throw new ProposalError(503, 'error.mcp_unavailable');
+    const selected = selectedOf(req.query?.proposal_id);
     const list = lists.current();
-    return runJob(() => promotions.suggest(lists.items(list.id)), { priority: 'background', label: 'promotions' });
+    return runJob(() => promotions.suggest(lists.items(list.id), { selected }), { priority: 'background', label: 'promotions' });
   });
 
   // 1.4.0: async search with per-item progress and cancel (LAN only, read-only: search_products).
   const searches = promotions ? new PromotionSearches(promotions, runJob) : undefined;
   const needSearches = () => { if (primary) can('promotions'); if (!searches) throw new ProposalError(503, 'error.mcp_unavailable'); return searches; };
-  app.post('/api/v1/promotions/searches', async (_req, reply) => {
+  // 1.6.0: an optional proposal_id makes each line's selected product the unit-price basis for `items[].cheaper`.
+  const selectedOf = (proposalId: unknown) => {
+    if (proposalId === undefined || proposalId === null) return undefined;
+    if (typeof proposalId !== 'string' || !/^[0-9a-f-]{36}$/i.test(proposalId)) throw new ProposalError(400, 'error.invalid_request');
+    const p = proposals?.get(proposalId);
+    if (!p) return undefined;
+    return new Map(p.lines.filter(l => l.selected && !l.skipped).map(l => [l.item_id, { product_id: l.selected!.product_id, unit_price: l.selected!.unit_price ?? null }]));
+  };
+  app.post<{ Body: { proposal_id?: unknown } | null }>('/api/v1/promotions/searches', async (req, reply) => {
     const s = needSearches();
+    const selected = selectedOf(req.body?.proposal_id);
     const list = lists.current();
-    return reply.code(202).send(s.start(lists.items(list.id)));
+    return reply.code(202).send(s.start(lists.items(list.id), selected));
   });
   app.get<{ Params: { id: string } }>('/api/v1/promotions/searches/:id', async (req, reply) =>
     needSearches().get(req.params.id) ?? reply.code(404).send(apiError('not_found', 'error.search_not_found')));
