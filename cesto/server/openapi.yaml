@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.3.2
+  version: 1.4.0
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -385,6 +385,21 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Promotions" }
         "503": { description: "Continente MCP unavailable (error.mcp_unavailable)" }
+  /promotions/searches:
+    post:
+      summary: "Start an async promotion search (1.4.0). Read-only (search_products only); LAN only. A request while one runs returns it."
+      responses:
+        "202": { description: "{search_id, status: running|done|cancelled|failed, done, total, items: [{item_id, item_name, status: queued|searching|done, promos, cheaper}], result, error}" }
+        "503": { description: MCP not available }
+  /promotions/searches/{id}:
+    get:
+      summary: "Search progress; once done or cancelled, result has the /promotions shape and each suggestion has unit_price, discount_percent and cheaper[] (same type, any brand or size, same unit, strictly lower price per kg or l, cheapest first)."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: search }, "404": { description: not found } }
+    delete:
+      summary: Cancel; the search stops after the current item and ends as cancelled with partial results
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: search }, "404": { description: not found } }
   /habits:
     get:
       summary: Cached purchase habits (frequently bought + favourites, refreshed every 24 h)

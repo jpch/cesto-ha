@@ -86,3 +86,13 @@ Reviewed 2026-10-31 before release. Scope: logging of slow requests. Verdict: **
 | # | Area | Finding | Severity | Status |
 |---|---|---|---|---|
 | 35 | Logging | Slow successful requests use the existing access-line format (method, path without query, status, LAN/ingress, token id, duration); no token, body or personal data is written. | None | OK |
+
+## Cesto 1.4.0 (add-on `cesto` 1.4.0)
+
+Reviewed 2026-10-31 before release. Scope: async promotion search and unit-price alternatives. Verdict: **no Critical or High findings; release allowed.**
+
+| # | Area | Finding | Severity | Status |
+|---|---|---|---|---|
+| 36 | Exposure | The new `/promotions/searches` routes are not in the remote allowlist (LAN only, like `/promotions`); they need a phone token. | None | OK |
+| 37 | Cart safety | The search only calls `search_products`; it never reads or writes the cart, and no checkout or payment path exists. Adding an alternative uses the existing proposal line edit, which only changes the proposal. | None | OK |
+| 38 | Resource use | One search at a time (a new request joins it), at most 20 items, one queued MCP call per item; cancel stops after the current item; results expire after 30 minutes. | Low | Accepted |

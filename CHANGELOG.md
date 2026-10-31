@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-31
+
+### Added
+- Async promotion search with per-item progress and cancel: `POST /api/v1/promotions/searches`, then
+  `GET`/`DELETE /api/v1/promotions/searches/{id}`. Cancelling keeps the promotions already found. Each catalogue
+  search goes through the MCP queue on its own, so other calls are not blocked for the whole search.
+- Unit-price alternatives: each promotion now has `unit_price`, `discount_percent` and `cheaper[]`, the related
+  products (same product type, any brand, size or pack, on promotion or not) whose price per kg or per litre is
+  strictly lower, compared only in the same unit, without products that have no unit price, cheapest first.
+
 ## [1.3.2] - 2026-10-31
 
 ### Changed
