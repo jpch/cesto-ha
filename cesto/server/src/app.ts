@@ -325,19 +325,24 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const proposals = catalog && habits ? new ProposalService(deps.db, lists, catalog, new Matcher(catalog, prefs), habits) : undefined;
   const needCatalog = () => { if (!proposals || !habits) throw new ProposalError(503, 'error.mcp_unavailable'); return { proposals, habits }; };
 
-  app.post<{ Body: { item_ids?: unknown; store?: unknown } }>('/api/v1/basket/proposals', async (req, reply) => {
+  app.post<{ Body: { item_ids?: unknown; store?: unknown; async?: unknown } }>('/api/v1/basket/proposals', async (req, reply) => {
     const ids = req.body?.item_ids;
     const store = req.body?.store ?? defaultStore;
     if (typeof store !== 'string' || !deps.config.connectors.includes(store as never)) return reply.code(400).send(apiError('invalid_request', 'error.invalid_store'));
     if (store !== primary?.id && deps.connectors) return reply.code(503).send(apiError('unavailable', 'error.connector_unavailable'));
     if (ids !== undefined && (!Array.isArray(ids) || !ids.every(Number.isInteger))) return reply.code(400).send(apiError('invalid_request', 'error.invalid_request'));
     const { proposals } = needCatalog();
+    if (req.body?.async === true) return reply.code(202).send(proposals.createAsync(runJob, req.principal!.name, ids as number[] | undefined, store, defaultStore));
     return reply.code(201).send(await runJob(() => proposals.create(req.principal!.name, ids as number[] | undefined, store, defaultStore)));
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/basket/proposals/:id', async (req, reply) => {
-    const p = needCatalog().proposals.get(req.params.id);
-    return p ?? reply.code(404).send(apiError('not_found', 'error.proposal_not_found'));
+    const { proposals } = needCatalog();
+    const p = proposals.get(req.params.id);
+    if (p) return { ...p, status: 'ready' };
+    const run = proposals.pendingRun(req.params.id);
+    if (run) return reply.code(run.status === 'matching' ? 202 : 200).send(run);
+    return reply.code(404).send(apiError('not_found', 'error.proposal_not_found'));
   });
 
   app.patch<{ Params: { id: string; item_id: string }; Body: { product_id?: unknown; quantity?: unknown; skip?: unknown } }>(

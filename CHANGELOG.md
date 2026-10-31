@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-31
+
+### Fixed
+- "Preparar carrinho" could hang and end in a connection error: matching runs one Continente search per item
+  (plus a daily order-history refresh) and could take longer than the phone's 30 s read timeout, and each
+  retry queued another full match behind the first. `POST /api/v1/basket/proposals` now accepts `async: true`,
+  returns 202 at once with progress, and `GET /api/v1/basket/proposals/{id}` reports `matching`, `ready` or
+  `failed` with the cause. A retry while a match is running joins it instead of queueing a new one.
+  Synchronous requests (older apps) work as before.
+
 ## [1.3.0] - 2026-10-31
 ### Added
 - Contract tests for the bundled `continentept-mcp`: a reviewed snapshot of its `tools/list` (names, input and output schemas), anonymised recorded results for all 15 allowlisted tools (including signed-out, unknown-quantity, unavailable and unconfirmed-change cases), and tests that validate the fixtures against the upstream output schemas, our calls against the input schemas, and every adapter against the fixtures. No Continente login is needed.
