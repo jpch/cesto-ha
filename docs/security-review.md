@@ -44,3 +44,12 @@ Reviewed 2026-10-31 before release. Scope: product search from outside home and 
 | 20 | Information disclosure | `GET /health` (unauthenticated) now returns `addon_slug`. The slug is derivable from the public repository URL and grants nothing without an HA token. Validated against `^[a-z0-9]+_[a-z0-9_]+$`; anything else is `null`. | None | OK |
 | 21 | Pairing | The QR adds `&slug=`; the app validates it with the same pattern before storing it or putting it into a Supervisor endpoint path, so a crafted QR cannot point the WebSocket call at another Supervisor endpoint. | None | OK |
 | 22 | Dependencies | No new dependencies. | None | OK |
+
+## Cesto 1.2.1 (add-on `cesto` 1.2.1, app `app.cesto` 1.2.1)
+
+Reviewed 2026-10-31 before release. Scope: access log (add-on), sync fix and error messages (app). Verdict: **no Critical or High findings; release allowed.**
+
+| # | Area | Finding | Severity | Status |
+|---|---|---|---|---|
+| 23 | Logging | The access log writes method, path without query string, status, path kind (lan/ingress), token id or `ha-user`, and a fixed auth-failure reason. Never the bearer token, cookies, `X-Remote-*` values, IP addresses or bodies; covered by `test/remote.test.ts`. Successes only at `debug`, so the log does not grow with the 30 s poll. | None | OK |
+| 24 | Dependencies | No new dependencies. | None | OK |

@@ -110,3 +110,18 @@ describe('1.2.0: product search from outside and add-on slug', () => {
     expect(pair.json().uri).toMatch(/&slug=0369824b_cesto$/);
   });
 });
+
+describe('1.2.1: access log', () => {
+  it('logs failed requests with the cause and never the token', async () => {
+    const lines: string[] = [];
+    const app = buildApp({ config: testConfig({ ingressAddress: INGRESS }), db: openDatabase(':memory:'), version: '1.2.1', accessLog: l => lines.push(l) });
+    await app.inject({ url: '/api/v1/lists/current?since=3', remoteAddress: '192.0.2.20', headers: { authorization: 'Bearer cesto_secretsecretsecret' } });
+    await app.inject({ url: '/api/v1/lists/current', remoteAddress: '192.0.2.20' });
+    await app.inject({ url: '/api/v1/health', remoteAddress: '192.0.2.20' });
+    expect(lines).toEqual([
+      expect.stringMatching(/^\[cesto\] GET \/api\/v1\/lists\/current 401 via=lan by=anonymous \(unknown or revoked token\) \d+ms$/),
+      expect.stringMatching(/^\[cesto\] GET \/api\/v1\/lists\/current 401 via=lan by=anonymous \(no token\) \d+ms$/),
+    ]);
+    expect(lines.join('\n')).not.toContain('secret');
+  });
+});
