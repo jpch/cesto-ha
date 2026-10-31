@@ -1,5 +1,5 @@
 name: Cesto
-version: "1.6.0"
+version: "1.7.0"
 slug: cesto
 description: Self-hosted shared shopping list that prepares supermarket carts (Continente first). Never checks out or pays.
 url: https://github.com/jpch/cesto-ha
@@ -20,12 +20,14 @@ ports:
   8099/tcp: 8099
 options:
   test_mode: true
+  remote_cart: false
   log_level: info
   ai_provider: none
   connectors:
     - continente
 schema:
   test_mode: bool
+  remote_cart: bool
   log_level: list(debug|info|warning|error)
   ai_provider: list(none|openai|anthropic)
   ai_api_key: password?

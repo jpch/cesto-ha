@@ -1,4 +1,7 @@
 configuration:
+  remote_cart:
+    name: Remote cart
+    description: "Off (default): the cart, promotions and photos are reachable only on the home network. On: they are also reachable away from home through Home Assistant ingress, with the same HA login, 30 cart changes per device per minute and one log line per change. Checkout, payment, orders and addresses are never reachable remotely."
   test_mode:
     name: Test mode
     description: "On: cart changes are only simulated. Off: the add-on changes your real Continente cart. Either way it can never check out, pay or place an order."

@@ -67,3 +67,29 @@ Home Assistant Core 2026.10.2, Supervisor 2026.10.5:
 3. Log in as that user, open Profile > Security > Long-lived access tokens > Create token, and copy it.
 4. In the app, enter the external HA URL and the token in the remote access settings.
 5. Do not forward port 8099 in the router.
+
+## Remote cart (1.7.0, option `remote_cart`)
+
+Off by default. To turn it on: Home Assistant → Settings → Add-ons → Cesto → Configuration → enable **Remote cart**
+(`remote_cart: true`) → Save → Restart the add-on. Check `GET /api/v1/health` shows `"remote_cart": true`; the app
+(1.5.0+) then offers the cart away from home. Turn it off the same way.
+
+When on, these routes are allowed through ingress (same HA user/token authentication as the list):
+`/basket/proposals[/{id}[/lines/{item_id}|/preview|/previews/{run}|/apply]]`, `/jobs/{id}[/retry-missing]`,
+`/promotions[/searches[/{id}]]`, `/photos[/{id}[/thumbnail]]` (ids must be UUIDs). In openapi.yaml these are tagged
+`remote-cart`. Any path containing checkout, payment, pay, order or address is refused (403) whatever the option,
+as are admin, preferences, habits, the raw MCP proxy and everything else. Non-GET cart calls are limited to 30 per
+device (HA user or app token) per minute; each one is logged once, with the device id but never a token.
+
+## Timeouts for long calls (HA ingress and a reverse proxy)
+
+- **Home Assistant ingress**: both hops (HA Core `hassio/ingress.py` and Supervisor `api/ingress.py`) proxy with
+  `aiohttp.ClientTimeout(total=None)`, so ingress itself does not cut long requests.
+- **A reverse proxy in front of HA** (for example the QNAP QTS/QuTS "Reverse Proxy" rules, which are nginx based,
+  nginx Proxy Manager or plain nginx) usually closes an idle upstream read after **60 s** (nginx
+  `proxy_read_timeout` default). The QNAP UI does not expose that value; with plain nginx you can set
+  `proxy_read_timeout 120s;` on the HA location. Websockets must be allowed for the HA frontend, not for Cesto.
+- Cesto does not need more than 60 s: over the remote path the app starts matching (`async: true`), preview
+  (`async: true`, 1.7.0) and apply as background jobs and polls them every second or two, so each request returns in
+  well under a second. The app still sends `X-Cesto-Read-Timeout` (180 s) on the remote path as a safety margin for
+  the few synchronous calls; keep the proxy timeout at **60 s or more**.
