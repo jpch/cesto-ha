@@ -1,3 +1,4 @@
+import type { RunJob } from './queue.js';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { PreferenceStore } from './habits.js';
@@ -74,7 +75,7 @@ export class BasketService {
     private readonly cart: CartApi,
     private readonly prefs: PreferenceStore,
     private readonly testMode: () => boolean,
-    private readonly runJob: <T>(job: () => Promise<T>) => Promise<T> = job => job(),
+    private readonly runJob: RunJob = job => job(),
     private readonly verifyDelays: number[] = VERIFY_DELAYS_MS,
   ) {}
 
@@ -124,7 +125,7 @@ export class BasketService {
       progress: { step: 'connect', done: 0, total: pv.items.length, current: null, verify_attempt: 0 }, missing: [], retry_of: null,
     };
     this.jobs.set(job.job_id, job);
-    void this.runJob(() => this.execute(job, p));
+    void this.runJob(() => this.execute(job, p), { priority: 'user', label: 'apply' });
     return job;
   }
 
@@ -149,7 +150,7 @@ export class BasketService {
       progress: { step: 'connect', done: 0, total: lines.length, current: null, verify_attempt: 0 }, missing: [], retry_of: old.job_id,
     };
     this.jobs.set(job.job_id, job);
-    void this.runJob(() => this.execute(job, p));
+    void this.runJob(() => this.execute(job, p), { priority: 'user', label: 'apply' });
     return job;
   }
 
@@ -157,7 +158,7 @@ export class BasketService {
   resumeWaiting(): void {
     for (const job of this.jobs.values()) if (job.status === 'waiting_session') {
       const p = this.proposals.get(job.proposal_id);
-      if (p) { job.status = 'queued'; void this.runJob(() => this.execute(job, p)); }
+      if (p) { job.status = 'queued'; void this.runJob(() => this.execute(job, p), { priority: 'user', label: 'apply' }); }
     }
   }
 

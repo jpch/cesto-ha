@@ -1,3 +1,4 @@
+import type { RunJob } from './queue.js';
 import type { CatalogReader, Product, Promotion } from './catalog.js';
 import { thumbnailUrl } from './thumbnails.js';
 import type { AiClient } from './ai.js';
@@ -172,7 +173,11 @@ export class PromotionSearches {
   private current: PromotionSearch | null = null;
   private cancel = false;
 
-  constructor(private readonly service: PromotionService, private readonly run: <T>(job: () => Promise<T>) => Promise<T>) {}
+  constructor(private readonly service: PromotionService, run: RunJob) {
+    // Promotion searches are background work: preview, apply and line edits run first (1.5.0).
+    this.run = <T>(job: () => Promise<T>) => run(job, { priority: 'background', label: 'promotions' });
+  }
+  private readonly run: <T>(job: () => Promise<T>) => Promise<T>;
 
   start(items: Item[]): PromotionSearch {
     if (this.current?.status === 'running') return this.current;
