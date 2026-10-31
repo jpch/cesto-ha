@@ -1,8 +1,9 @@
 import type { CatalogReader, Product } from './catalog.js';
+import { thumbnailUrl } from './thumbnails.js';
 
 export interface SearchCandidate {
   product_id: string; name: string; package_text: string | null; price: Product['price'] | null; unit_price: Product['unitPrice'] | null;
-  image_url: string | null; availability: string; promotions: NonNullable<Product['promotions']>;
+  image_url: string | null; thumbnail_url: string | null; availability: string; promotions: NonNullable<Product['promotions']>;
 }
 export interface SearchResult { query: string; barcode: string | null; matched_by: 'barcode' | 'name' | null; candidates: SearchCandidate[] }
 
@@ -11,7 +12,7 @@ export class SearchError extends Error { constructor(readonly status: number, re
 const MAX = 8;
 const toCandidate = (p: Product): SearchCandidate => ({
   product_id: String(p.productId), name: p.name, package_text: p.packageText ?? null, price: p.price ?? null, unit_price: p.unitPrice ?? null,
-  image_url: p.imageUrl ?? null, availability: p.availability ?? 'unknown', promotions: p.promotions ?? [],
+  image_url: p.imageUrl ?? null, thumbnail_url: thumbnailUrl(p.imageUrl), availability: p.availability ?? 'unknown', promotions: p.promotions ?? [],
 });
 
 /**
