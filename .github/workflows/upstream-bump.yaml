@@ -1,0 +1,217 @@
+name: continentept-mcp update
+
+# Daily check for a new continentept-mcp release on npm. When one exists it:
+#  1. waits 72 h after the npm publish (scheduled runs), installs it in a read-only job (no install
+#     scripts, no browser) and diffs tools/list against the reviewed snapshot;
+#  2. opens a PR that bumps the Dockerfile ARG, the add-on patch version and the CHANGELOG, with the
+#     added/removed/changed tools in the body;
+#  3. runs the normal build (contract tests, unit tests, image build, smoke test) on the PR branch;
+#  4. only if the tool contract is unchanged and the build is green: merges, publishes the images,
+#     tags v<version> and creates the GitHub release.
+# Any added, removed or changed tool blocks step 4: the PR stays open for a human review. New tools
+# stay unreachable regardless, because the add-on only calls allowlisted tools.
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "continentept-mcp version to test (default: latest on npm)"
+        type: string
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: upstream-bump
+  cancel-in-progress: false
+
+jobs:
+  # Runs the new upstream code (tools/list) with a read-only token and no persisted git credentials.
+  check:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      proceed: ${{ steps.detect.outputs.proceed }}
+      version: ${{ steps.detect.outputs.version }}
+      current: ${{ steps.detect.outputs.current }}
+      branch: ${{ steps.detect.outputs.branch }}
+      clean: ${{ steps.contract.outputs.clean }}
+      report: ${{ steps.contract.outputs.report }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Detect a newer release
+        id: detect
+        env:
+          REQUESTED: ${{ inputs.version }}
+          EVENT: ${{ github.event_name }}
+          COOLDOWN_HOURS: "72"
+        run: |
+          current=$(sed -nE 's/^ARG CONTINENTEPT_MCP_VERSION=([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' cesto/Dockerfile)
+          latest="${REQUESTED:-$(npm view continentept-mcp version)}"
+          if ! [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::unexpected versions current=$current latest=$latest"; exit 1
+          fi
+          branch="deps/continentept-mcp-$latest"
+          proceed=true
+          published=$(npm view "continentept-mcp@$latest" time --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s)[process.argv[1]]??""))' "$latest")
+          age_h=$(( ( $(date +%s) - $(date -d "${published:-now}" +%s) ) / 3600 ))
+          if [ "$current" = "$latest" ] || [ "$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n1)" != "$latest" ]; then
+            echo "Pinned $current, npm $latest: nothing to do"; proceed=false
+          elif [ "$EVENT" = "schedule" ] && [ "$age_h" -lt "$COOLDOWN_HOURS" ]; then
+            echo "$latest was published ${age_h}h ago; waiting ${COOLDOWN_HOURS}h before updating"; proceed=false
+          elif git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" "$branch" >/dev/null; then
+            echo "Branch $branch already exists: an update PR is open or under review"; proceed=false
+          fi
+          { echo "proceed=$proceed"; echo "version=$latest"; echo "current=$current"; echo "branch=$branch"; } >> "$GITHUB_OUTPUT"
+      - name: Contract diff against the new release (no sign-in, no install scripts, no browser)
+        id: contract
+        if: steps.detect.outputs.proceed == 'true'
+        working-directory: cesto/server
+        env:
+          VERSION: ${{ steps.detect.outputs.version }}
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm ci
+          npm install -g --ignore-scripts "continentept-mcp@${VERSION}"
+          if npm run -s contract:check > "$RUNNER_TEMP/contract.md"; then clean=true; else clean=false; fi
+          tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/contract.md"
+          {
+            echo "clean=$clean"
+            echo "report<<CONTRACT_REPORT_EOF"
+            grep -v '^CONTRACT_REPORT_EOF$' "$RUNNER_TEMP/contract.md"
+            echo "CONTRACT_REPORT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  # Writes the branch and the PR; never runs upstream code.
+  prepare:
+    needs: check
+    if: needs.check.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      addon_version: ${{ steps.bump.outputs.addon_version }}
+      pr: ${{ steps.pr.outputs.pr }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Bump versions and CHANGELOG
+        id: bump
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          BRANCH: ${{ needs.check.outputs.branch }}
+          CLEAN: ${{ needs.check.outputs.clean }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          flag=""; [ "$CLEAN" = "true" ] || flag="--contract-changed"
+          addon=$(node cesto/server/scripts/bump-upstream.mjs "$VERSION" $flag)
+          echo "addon_version=$addon" >> "$GITHUB_OUTPUT"
+          git commit -am "Update continentept-mcp to $VERSION (add-on $addon)"
+          git push origin "$BRANCH"
+      - name: Open the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+          CURRENT: ${{ needs.check.outputs.current }}
+          BRANCH: ${{ needs.check.outputs.branch }}
+          CLEAN: ${{ needs.check.outputs.clean }}
+          REPORT: ${{ needs.check.outputs.report }}
+          ADDON: ${{ steps.bump.outputs.addon_version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "Automated update of the bundled \`continentept-mcp\` from $CURRENT to $VERSION (add-on $ADDON)."
+            echo
+            printf '%s\n' "$REPORT"
+            echo
+            echo "Upstream changes: https://www.npmjs.com/package/continentept-mcp/v/$VERSION (diff: \`npm diff --diff=continentept-mcp@$CURRENT --diff=continentept-mcp@$VERSION\`)"
+            echo
+            if [ "$CLEAN" = "true" ]; then
+              echo "**Auto-merge: enabled.** The workflow merges, publishes the images and releases v$ADDON once the build in $RUN_URL is green."
+            else
+              echo "**Auto-merge: BLOCKED.** The upstream tool contract changed. New tools stay unreachable (allowlist in \`cesto/server/src/mcp/tools.ts\`); review them, especially anything about checkout or payment, update the adapters (\`src/mcp/upstream.ts\`), fixtures and snapshot (\`npm run contract:write\`), then merge by hand and release."
+            fi
+            echo
+            echo "Note: this PR was opened by GitHub Actions, so the pull_request checks do not run on it; the build ran in $RUN_URL. Push a commit to re-run the checks here."
+          } > "$RUNNER_TEMP/body.md"
+          url=$(gh pr create --base main --head "$BRANCH" --title "Update continentept-mcp to $VERSION" --body-file "$RUNNER_TEMP/body.md")
+          echo "pr=$url" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: [check, prepare]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build.yaml
+    with:
+      ref: ${{ needs.check.outputs.branch }}
+      publish: false
+
+  merge:
+    needs: [check, prepare, test]
+    if: needs.check.outputs.clean == 'true' && needs.test.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      sha: ${{ steps.merge.outputs.sha }}
+    steps:
+      - name: Merge
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
+          sha=$(gh pr view "$PR" --repo "$REPO" --json mergeCommit -q .mergeCommit.oid)
+          test -n "$sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: merge
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build.yaml
+    with:
+      ref: ${{ needs.merge.outputs.sha }}
+      publish: true
+
+  release:
+    needs: [prepare, merge, publish]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.merge.outputs.sha }}
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ADDON: ${{ needs.prepare.outputs.addon_version }}
+          SHA: ${{ needs.merge.outputs.sha }}
+        run: |
+          [[ "$ADDON" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          awk -v v="$ADDON" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          test -s "$RUNNER_TEMP/notes.md"
+          gh release create "v$ADDON" --target "$SHA" --title "v$ADDON" --notes-file "$RUNNER_TEMP/notes.md"

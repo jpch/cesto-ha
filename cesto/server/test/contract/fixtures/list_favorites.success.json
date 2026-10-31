@@ -1,0 +1,28 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "favorites": [
+        {
+          "productId": "2000001",
+          "productSlug": "leite-uht-meio-gordo",
+          "name": "Leite UHT Meio-Gordo",
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 103
+            },
+            "per": "item"
+          },
+          "url": "https://www.continente.pt/produto/leite-uht-meio-gordo-2000001.html"
+        }
+      ],
+      "fetchedAt": "2026-10-31T09:00:00.000Z",
+      "completeness": "complete",
+      "source": "cache",
+      "freshness": "fresh",
+      "expiresAt": "2026-11-01T09:00:00.000Z",
+      "cacheState": "populated"
+    }
+  }
+}

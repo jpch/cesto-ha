@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { CatalogReader, FrequentProduct, Product } from './catalog.js';
+import { favoritesOf, frequentOf } from './mcp/upstream.js';
 
 export interface Habits { frequent: FrequentProduct[]; favorites: Product[]; fetched_at: string | null }
 const DAY = 24 * 3600_000;
@@ -17,8 +18,8 @@ export class HabitsService {
     const [freq, favs] = [await this.catalog.listFrequentlyBought({ orderLimit: 20, limit: 50 }), await this.catalog.listFavorites(true)];
     const previous = this.get();
     const habits: Habits = {
-      frequent: freq.status === 'error' ? previous.frequent : ((freq.data?.products as FrequentProduct[] | undefined) ?? []),
-      favorites: favs.status === 'error' ? previous.favorites : ((favs.data?.favorites as Product[] | undefined) ?? []),
+      frequent: freq.status === 'error' ? previous.frequent : frequentOf(freq),
+      favorites: favs.status === 'error' ? previous.favorites : favoritesOf(favs),
       fetched_at: new Date(this.now()).toISOString(),
     };
     this.db.prepare("INSERT INTO meta (key, value) VALUES ('habits', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(habits));

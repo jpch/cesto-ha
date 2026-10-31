@@ -1,0 +1,39 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "decisions": [
+        {
+          "question": "leite",
+          "suggested": "2000001",
+          "options": [
+            {
+              "productId": "2000001",
+              "name": "Leite UHT Meio-Gordo",
+              "packageText": "emb. 1 lt",
+              "price": {
+                "amount": {
+                  "currency": "EUR",
+                  "minorUnits": 103
+                },
+                "per": "item"
+              },
+              "unitPrice": {
+                "amount": {
+                  "currency": "EUR",
+                  "minorUnits": 103
+                },
+                "per": "l",
+                "basis": "website"
+              },
+              "availability": "available",
+              "imageUrl": "https://www.continente.pt/dw/image/v2/BDVS_PRD/on/demandware.static/-/Sites-col-master-catalog/default/images/2000001.jpg"
+            }
+          ],
+          "failures": []
+        }
+      ]
+    }
+  }
+}

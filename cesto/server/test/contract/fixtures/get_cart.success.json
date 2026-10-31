@@ -1,0 +1,189 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "customerAuthenticated": true,
+      "items": [
+        {
+          "productId": "2000001",
+          "cartItemId": "line-a1",
+          "name": "Leite UHT Meio-Gordo",
+          "kind": "product",
+          "quantity": {
+            "status": "known",
+            "quantity": {
+              "value": 6,
+              "unit": "un"
+            }
+          },
+          "storefrontQuantity": {
+            "value": 6,
+            "unit": "un"
+          },
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 103
+            },
+            "per": "item"
+          },
+          "lineTotal": {
+            "currency": "EUR",
+            "minorUnits": 618
+          },
+          "estimated": false,
+          "promotions": [
+            {
+              "kind": "immediate_discount",
+              "label": "Desconto imediato 20%",
+              "previousPrice": {
+                "amount": {
+                  "currency": "EUR",
+                  "minorUnits": 129
+                },
+                "per": "item"
+              },
+              "percentOff": 20,
+              "amountOff": {
+                "currency": "EUR",
+                "minorUnits": 26
+              },
+              "bundle": null,
+              "nthUnit": null,
+              "validFrom": "2026-10-28",
+              "validTo": "2026-11-03"
+            }
+          ],
+          "lineTotalBeforeDiscount": {
+            "currency": "EUR",
+            "minorUnits": 774
+          }
+        },
+        {
+          "productId": "2000002",
+          "cartItemId": "line-a2",
+          "name": "Banana",
+          "kind": "product",
+          "quantity": {
+            "status": "known",
+            "quantity": {
+              "value": 1.2,
+              "unit": "kg"
+            }
+          },
+          "storefrontQuantity": {
+            "value": 6,
+            "unit": "un"
+          },
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 139
+            },
+            "per": "kg"
+          },
+          "lineTotal": {
+            "currency": "EUR",
+            "minorUnits": 167
+          },
+          "estimated": true,
+          "promotions": [],
+          "lineTotalBeforeDiscount": null
+        },
+        {
+          "productId": "2000004",
+          "cartItemId": "line-a3",
+          "name": "Detergente Loiça",
+          "kind": "product",
+          "quantity": {
+            "status": "unknown",
+            "value": null,
+            "rawText": "±1",
+            "reason": "unrecognized_format"
+          },
+          "storefrontQuantity": null,
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 299
+            },
+            "per": "item"
+          },
+          "lineTotal": null,
+          "estimated": true,
+          "promotions": [],
+          "lineTotalBeforeDiscount": null
+        },
+        {
+          "productId": "2000009",
+          "cartItemId": null,
+          "name": "Saco reutilizável",
+          "kind": "bag",
+          "quantity": {
+            "status": "known",
+            "quantity": {
+              "value": 2,
+              "unit": "un"
+            }
+          },
+          "storefrontQuantity": {
+            "value": 2,
+            "unit": "un"
+          },
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 10
+            },
+            "per": "item"
+          },
+          "lineTotal": {
+            "currency": "EUR",
+            "minorUnits": 20
+          },
+          "estimated": false,
+          "promotions": [],
+          "lineTotalBeforeDiscount": null
+        }
+      ],
+      "totals": {
+        "products": {
+          "currency": "EUR",
+          "minorUnits": 785
+        },
+        "bags": {
+          "currency": "EUR",
+          "minorUnits": 20
+        },
+        "deposit": {
+          "currency": "EUR",
+          "minorUnits": 0
+        },
+        "delivery": null,
+        "discounts": {
+          "currency": "EUR",
+          "minorUnits": 156
+        },
+        "grandTotal": {
+          "currency": "EUR",
+          "minorUnits": 805
+        },
+        "estimated": true
+      },
+      "checkout": {
+        "minimumOrder": {
+          "currency": "EUR",
+          "minorUnits": 5000
+        },
+        "meetsMinimum": false,
+        "entregaZero": false,
+        "freeDeliveryFrom": {
+          "currency": "EUR",
+          "minorUnits": 10000
+        },
+        "deliveryFee": "free"
+      },
+      "observedAt": "2026-10-31T09:00:00.000Z"
+    }
+  }
+}

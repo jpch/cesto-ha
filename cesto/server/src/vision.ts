@@ -3,6 +3,7 @@ import { thumbnailUrl } from './thumbnails.js';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tokens, type CatalogReader, type Product } from './catalog.js';
+import { productsOf } from './mcp/upstream.js';
 
 /** A vision provider turns an image into search hints. Only `none` exists in v1: no image ever leaves the server. */
 export interface VisionProvider { readonly name: string; describe(image: Buffer): Promise<string[]> }
@@ -83,7 +84,7 @@ export class PhotoService {
   private path(id: string) { return join(this.dir, `${id}.img`); }
   private async search(query: string, limit: number): Promise<Candidate[]> {
     const res = await this.catalog.searchProducts({ query, limit });
-    return ((res.data?.products ?? []) as Product[]).slice(0, limit).map(p => ({
+    return productsOf(res).slice(0, limit).map(p => ({
       product_id: p.productId, name: p.name, package_text: p.packageText ?? null, image_url: p.imageUrl ?? null, thumbnail_url: thumbnailUrl(p.imageUrl), availability: p.availability ?? 'unknown',
     }));
   }

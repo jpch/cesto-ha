@@ -1,0 +1,13 @@
+{
+  "result": {
+    "status": "error",
+    "error": {
+      "code": "quantity_below_minimum",
+      "message": "Quantity is below the minimum.",
+      "retryable": false
+    },
+    "mutation": {
+      "outcome": "not_applied"
+    }
+  }
+}
