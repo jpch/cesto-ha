@@ -3,7 +3,7 @@ import { openDatabase } from '../src/db.js';
 import type { Config } from '../src/config.js';
 
 export const testConfig = (over: Partial<Config> = {}): Config => ({
-  testMode: true, logLevel: 'error', visionProvider: 'none', ai: { provider: 'none', apiKey: null, model: null }, language: 'pt-PT', connectors: ['continente'],
+  testMode: true, remoteCart: false, logLevel: 'error', visionProvider: 'none', ai: { provider: 'none', apiKey: null, model: null }, language: 'pt-PT', connectors: ['continente'],
   dataDir: '/tmp', port: 0, ingressAddress: '127.0.0.1', ...over,
 });
 

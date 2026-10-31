@@ -5,6 +5,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-31
+
+### Added
+- Add-on option `remote_cart` (default `false`). When `true`, the cart routes (proposals, line edits, preview, apply,
+  jobs, promotions, photos) are also allowed through HA ingress with the same HA user/token authentication.
+  Checkout, payment, order and address paths are always refused remotely.
+- Per-device rate limit on remote cart changes (30 non-GET calls per minute, `429 error.rate_limited`).
+- One log line per remote cart change with the device id (`by=ha-user:<id>` or `by=token#<id>`), ids masked.
+- `remote_cart` in `GET /api/v1/health`.
+- Async preview: `POST /basket/proposals/{id}/preview {async: true}` returns `202` with a run;
+  poll `GET /basket/proposals/{id}/previews/{run}`.
+- Docs: HA ingress and reverse proxy (QNAP) timeouts for long calls.
+- Contract tests for the remote cart allowlist, the `remote-cart` openapi tag, the rate limit and the log line.
+
 ## [1.6.0] - 2026-10-31
 
 ### Added

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.6.0
+  version: 1.7.0
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -16,7 +16,7 @@ servers:
   - url: http://homeassistant.local:8099/api/v1
     description: LAN, add-on bearer token, full API
   - url: "{ha_external_url}/api/hassio_ingress/{ingress_token}/api/v1"
-    description: Remote through HA ingress (cookie ingress_session), list API only
+    description: "Remote through HA ingress (cookie ingress_session), list API only. Operations tagged remote-cart are also allowed when the add-on option remote_cart is true (1.7.0, default false); 30 non-GET remote-cart calls per device per minute (429), one log line per remote cart mutation. Checkout, payment, order and address paths are always refused remotely."
     variables:
       ha_external_url: { default: "https://ha.example.org" }
       ingress_token: { default: "from supervisor /addons/75545ee1_cesto/info -> ingress_url" }
@@ -68,6 +68,7 @@ components:
       type: object
       required: [version, test_mode, session_valid, queue_length]
       properties:
+        remote_cart: { type: boolean, description: "1.7.0: remote_cart add-on option; when false, cart routes are LAN only" }
         version: { type: string }
         test_mode: { type: boolean }
         session_valid: { type: [boolean, "null"] }
@@ -343,6 +344,7 @@ paths:
           content: { application/json: { schema: { $ref: "#/components/schemas/ConnectorsResponse" } } }
   /basket/proposals:
     post:
+      tags: [remote-cart]
       summary: Match the pending items of the current list to Continente products (preference > frequent > favourite > search). Read-only on the account.
       requestBody: { content: { application/json: { schema: { type: object, properties: { item_ids: { type: array, items: { type: integer } }, store: { type: string, description: "connector id; default the first enabled. One cart per supermarket." }, async: { type: boolean, description: "Return 202 at once and match in the background; poll GET /basket/proposals/{id}. A second async request while one is matching returns the same run." } } } } } }
       responses:
@@ -352,11 +354,13 @@ paths:
         "503": { description: MCP not available }
   /basket/proposals/{id}:
     get:
+      tags: [remote-cart]
       summary: Get a stored proposal
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: "proposal with status ready, or an async run with status failed and error {status, message_key}" }, "202": { description: "async run still matching, with progress {done, total}" }, "404": { description: not found } }
   /basket/proposals/{id}/lines/{item_id}:
     patch:
+      tags: [remote-cart]
       summary: Choose a product, change the cart quantity, or skip a line
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: item_id, in: path, required: true, schema: { type: integer } }]
       requestBody: { content: { application/json: { schema: { type: object, properties: { product_id: { type: string }, quantity: { type: number }, skip: { type: boolean } } } } } }
@@ -377,6 +381,7 @@ paths:
       responses: { "204": { description: removed }, "404": { description: not found } }
   /promotions:
     get:
+      tags: [remote-cart]
       summary: "Promotion suggestions for the pending list items, to show before the cart preview. Read-only (search_products only), never touches the cart or checkout. LAN only."
       description: |
         For each pending item (max 20) the server searches its category (or its name when it has no category) and keeps
@@ -392,6 +397,7 @@ paths:
         "503": { description: "Continente MCP unavailable (error.mcp_unavailable)" }
   /promotions/searches:
     post:
+      tags: [remote-cart]
       summary: "Start an async promotion search (1.4.0). Read-only (search_products, plus a cached get_product for a selected product without a unit price); LAN only. A request while one runs returns it."
       requestBody: { required: false, content: { application/json: { schema: { type: object, properties: { proposal_id: { type: string, description: "1.6.0+: optional proposal id; each line's selected product becomes the unit-price basis of result.items[].cheaper" } } } } } }
       responses:
@@ -400,10 +406,12 @@ paths:
         "503": { description: MCP not available }
   /promotions/searches/{id}:
     get:
+      tags: [remote-cart]
       summary: "Search progress; once done or cancelled, result has the /promotions shape and each suggestion has unit_price, discount_percent and cheaper[] (same type, any brand or size, same unit, strictly lower price per kg or l, cheapest first). 1.6.0+: result.items[] has one entry per item: {item_id, item_name, query, selected_product_id, basis: {unit_price, source: selected|promotion} | null, promotions[] (max 3, without the selected product), cheaper[] (max 5, cheaper per kg/l than basis, never a promotion or the selected product)}."
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: search }, "404": { description: not found } }
     delete:
+      tags: [remote-cart]
       summary: Cancel; the search stops after the current item and ends as cancelled with partial results
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: search }, "404": { description: not found } }
@@ -417,25 +425,36 @@ paths:
       responses: { "200": { description: habits } }
   /basket/proposals/{id}/preview:
     post:
+      tags: [remote-cart]
       summary: "Read-only preview: get_cart + preview_cart_changes. merge adds to the current cart quantities; replace lists what clear_cart would remove. Required before apply."
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
-      requestBody: { content: { application/json: { schema: { type: object, properties: { mode: { type: string, enum: [merge, replace], default: merge } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, properties: { mode: { type: string, enum: [merge, replace], default: merge }, async: { type: boolean, description: "1.7.0: return 202 {preview_run_id, status: running} at once; poll GET .../previews/{run}. Used by the app on the remote path." } } } } } }
       responses:
+        "202": { description: "1.7.0, async: {preview_run_id, proposal_id, status: running}" }
         "200": { description: "Preview {preview_id, mode, test_mode, items[{item_id, product_id, name, current, add, desired}], removed[{productId, quantity}], estimated_cost ({currency, minorUnits} or null), problems[{product_id, name, availability, error_key}] (always a list)}" }
         "409": { description: "choices pending, nothing to apply, or session expired" }
+  /basket/proposals/{id}/previews/{run}:
+    get:
+      tags: [remote-cart]
+      summary: "1.7.0: an async preview started with POST .../preview {async: true}. 202 while running; 200 with {preview_run_id, proposal_id, status: done|failed, preview (the synchronous preview shape), error {status, message_key}}. Runs are kept 15 min (newest 50)."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: run, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: finished }, "202": { description: running }, "404": { description: unknown run } }
   /basket/proposals/{id}/apply:
     post:
+      tags: [remote-cart]
       summary: "Apply the latest preview as a background job (set_cart_item_quantity with exact totals; clear_cart first for replace). In test mode nothing is sent and the job is 'simulated'. Never checks out or pays."
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       requestBody: { content: { application/json: { schema: { type: object, required: [preview_id], properties: { preview_id: { type: string } } } } } }
       responses: { "202": { description: job }, "409": { description: "preview missing or stale (proposal changed since)" } }
   /jobs/{id}:
     get:
+      tags: [remote-cart]
       summary: "Apply job: status queued|running|waiting_session|done|simulated|needs_attention|failed; lines[{item_id, product_id, name, desired, outcome confirmed|not_applied|unknown|simulated, in_cart, found_quantity}], progress{step connect|clear|adding|verifying|done, done, total, current (product name), verify_attempt}, missing[{item_id, product_id, name, desired, found_quantity}], retry_of, cart_after, message_key. After the writes the cart is read back up to 4 times (waiting 1, 2, 4, 8 s) until every line is present with at least its quantity; an unknown outcome stops the job (no replay) and reads the cart."
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: job }, "404": { description: not found } }
   /jobs/{id}/retry-missing:
     post:
+      tags: [remote-cart]
       summary: "Try adding what is missing: a new job (merge, set_cart_item_quantity with exact totals) for the missing lines of a needs_attention job, then read back again. Test mode simulates. Never checks out or pays. LAN only."
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "202": { description: job (retry_of = the original job) }, "404": { description: not found }, "409": { description: "nothing to retry (error.nothing_to_retry)" } }
@@ -462,6 +481,7 @@ paths:
         "503": { description: "error.mcp_unavailable" }
   /photos:
     post:
+      tags: [remote-cart]
       summary: "Identify a product: barcode (EAN read on the phone) first, then packaging text (OCR on the phone), then the vision provider (only 'none' in v1, so the image is never sent anywhere). The original image is never stored; an optional thumbnail (JPEG/PNG, max 64 KB) is kept until deleted. Candidates are for adding to the list, never the cart."
       requestBody:
         content:
@@ -478,11 +498,13 @@ paths:
         "400": { description: invalid input }
   /photos/{id}/thumbnail:
     get:
+      tags: [remote-cart]
       summary: The stored thumbnail
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: image }, "404": { description: not found } }
   /photos/{id}:
     delete:
+      tags: [remote-cart]
       summary: Delete the photo thumbnail
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "204": { description: deleted }, "404": { description: not found } }

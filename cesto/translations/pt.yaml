@@ -1,4 +1,7 @@
 configuration:
+  remote_cart:
+    name: Carrinho remoto
+    description: "Desligado (predefinição): o carrinho, as promoções e as fotos só estão disponíveis na rede de casa. Ligado: também ficam disponíveis fora de casa através do ingress do Home Assistant, com o mesmo login do HA, até 30 alterações ao carrinho por dispositivo por minuto e uma linha de registo por alteração. Finalizar compra, pagamentos, encomendas e moradas nunca ficam disponíveis remotamente."
   test_mode:
     name: Modo de teste
     description: "Ligado: as alterações ao carrinho são só simuladas. Desligado: o add-on altera o seu carrinho Continente real. Em nenhum caso pode finalizar a compra, pagar ou fazer encomendas."

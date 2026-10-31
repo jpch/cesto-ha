@@ -6,7 +6,7 @@ describe('API core', () => {
     const { app } = makeApp();
     const res = await app.inject('/api/v1/health');
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ version: '0.1.0', test_mode: true, session_valid: null, queue_length: 0, addon_slug: null });
+    expect(res.json()).toEqual({ version: '0.1.0', test_mode: true, session_valid: null, queue_length: 0, addon_slug: null, remote_cart: false });
   });
 
   it('rejects unauthenticated and bad-token calls with 401 and a message key', async () => {
