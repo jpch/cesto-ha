@@ -5,7 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [Unreleased]
+## [1.1.0] - 2026-10-31
+### Added
+- `thumbnail_url` on every product option the app shows (basket proposal options and selection, promotion suggestions, `POST /catalog/search` and `POST /photos` candidates): the store's own small image size (Continente CDN `sw`/`sh` = 120 px). Only https URLs on allowlisted store image hosts (`www.continente.pt`) get one; anything else is `null`. The add-on never fetches or proxies images (no SSRF surface).
+
 ### Changed
 - OpenAPI: `GET /connectors` documents its response schema (`ConnectorsResponse`, `Connector`).
 - GitHub Actions pinned to commit SHAs; Dependabot for npm and GitHub Actions.

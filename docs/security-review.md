@@ -20,3 +20,15 @@ Assets: the supermarket account and session (in the add-on only), the household 
 | 8 | Android | Only the launcher activity is exported; no deep-link intent filter (QR is scanned in-app and strictly parsed). `allowBackup=false`; tokens encrypted with Android Keystore keys. Cleartext see #5. | Low | OK |
 | 9 | Dependencies | `npm audit`: 0 vulnerabilities (prod and dev). New dependency `qrcode-generator` 2.0.4 (MIT, no deps). Gradle dependencies are recent stable releases; no automated scanner in CI yet. | Low | Add Dependabot |
 | 10 | GitHub Actions | App workflow default `contents: read`; only the tag-only release job has `contents: write`; keystore decoded to the runner temp dir and deleted. cesto-releases publishing uses an optional fine-grained `RELEASES_TOKEN` scoped to that repo. Add-on workflow: `packages: write` needed to push images, pushes only on `main`/tags. Actions pinned by major tag, not SHA. | Low | Accepted |
+
+## Cesto 1.1.0 (add-on `cesto` 1.1.0, app `app.cesto` 1.1.0)
+
+Reviewed 2026-10-31 before release. Scope: product thumbnails in candidate lists and editable list items. Verdict: **no Critical or High findings; release allowed.**
+
+| # | Area | Finding | Severity | Status |
+|---|---|---|---|---|
+| 11 | SSRF | Thumbnails are not proxied: the add-on only rewrites the connector's image URL (`thumbnailUrl`) and returns it when it is https, on an allowlisted store image host (`www.continente.pt`), without credentials or a custom port; otherwise `null`. The add-on makes no new outbound request, so there is no SSRF surface. Covered by `test/thumbnails.test.ts` (other hosts, look-alike hosts, IPs, `.local`, http, `file:`, userinfo, ports). | None | OK |
+| 12 | Privacy | The phone now loads thumbnails directly from the store CDN (as the photo search already did), so the CDN sees the phone's IP and the product images viewed. No token or cookie is sent: the image loader is a separate client without the API auth interceptor, and the app also refuses non-https or non-allowlisted thumbnail hosts. | Low | Accepted |
+| 13 | Android cache | Thumbnails are cached in the app's private cache dir (Coil disk cache, 50 MB, evictable by the OS); no list data is written there. | None | OK |
+| 14 | Item edits | Edits reuse the existing `PATCH /items/:id` (last write wins, `client_id`/`updated_at`); the linked product is validated server-side (`linkedProduct`: product id pattern, https-only image, length limits). Offline edits are queued in Room and replayed in order; a queued create carries the latest local state. No new route, no cart call: editing never touches the supermarket cart. | None | OK |
+| 15 | Dependencies | No new dependencies (server or app). `npm audit` unchanged. | None | OK |

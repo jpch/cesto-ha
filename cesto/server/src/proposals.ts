@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { thumbnailUrl } from './thumbnails.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { CatalogReader, Product } from './catalog.js';
 import type { HabitsService } from './habits.js';
@@ -65,7 +66,8 @@ export class ProposalService {
       if (res.status === 'error' || !res.data) throw new ProposalError(res.error?.code === 'not_found' ? 404 : 502, 'error.product_unavailable');
       const product = res.data as unknown as Product;
       line.selected = { product_id: product.productId, name: product.name, package_text: product.packageText ?? null, price: product.price ?? null,
-        availability: product.availability ?? 'unknown', image_url: product.imageUrl ?? known?.image_url ?? null, promotions: product.promotions ?? [], reason: known?.reason ?? 'search' };
+        availability: product.availability ?? 'unknown', image_url: product.imageUrl ?? known?.image_url ?? null,
+        thumbnail_url: thumbnailUrl(product.imageUrl ?? known?.image_url), promotions: product.promotions ?? [], reason: known?.reason ?? 'search' };
       line.needs_choice = false;
       line.out_of_stock = product.availability === 'unavailable';
       await this.matcher.finishQuantity(line, product, line.requested, null);
