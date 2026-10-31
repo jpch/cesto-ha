@@ -31,31 +31,31 @@ jobs:
       - name: Read add-on version
         id: meta
         run: |
-          version=$(grep -E '^version:' continente_mcp/config.yaml | sed -E 's/^version:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/')
+          version=$(grep -E '^version:' cesto/config.yaml | sed -E 's/^version:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/')
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Build image (runs unit tests in the build)
         uses: docker/build-push-action@v6
         with:
-          context: continente_mcp
+          context: cesto
           platforms: ${{ matrix.platform }}
           build-args: BUILD_FROM=ghcr.io/home-assistant/${{ matrix.arch }}-base-debian:trixie
           tags: |
-            continente-mcp:test
-            ghcr.io/jpch/${{ matrix.arch }}-continente-mcp:${{ steps.meta.outputs.version }}
-            ghcr.io/jpch/${{ matrix.arch }}-continente-mcp:latest
+            cesto:test
+            ghcr.io/jpch/${{ matrix.arch }}-cesto:${{ steps.meta.outputs.version }}
+            ghcr.io/jpch/${{ matrix.arch }}-cesto:latest
           labels: |
             io.hass.type=addon
             io.hass.arch=${{ matrix.arch }}
             io.hass.version=${{ steps.meta.outputs.version }}
-            org.opencontainers.image.source=https://github.com/jpch/continente-mcp-ha
+            org.opencontainers.image.source=https://github.com/jpch/cesto-ha
           load: true
       - name: Image size
         run: |
-          docker image inspect continente-mcp:test --format '{{.Architecture}} {{.Size}}' | tee size.txt
+          docker image inspect cesto:test --format '{{.Architecture}} {{.Size}}' | tee size.txt
       - name: Headless smoke test (search_products, read-only)
         run: |
           docker run -d --name smoke --platform ${{ matrix.platform }} \
-            -e CONTINENTE_DATA_DIR=/tmp/continente --entrypoint sleep continente-mcp:test infinity
+            -e CONTINENTE_DATA_DIR=/tmp/continente --entrypoint sleep cesto:test infinity
           docker exec smoke uname -m
           docker exec smoke node --version
           docker exec -w /opt/smoke smoke node smoke.mjs
@@ -64,8 +64,8 @@ jobs:
         if: github.event_name == 'push'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker push ghcr.io/jpch/${{ matrix.arch }}-continente-mcp:${{ steps.meta.outputs.version }}
-          docker push ghcr.io/jpch/${{ matrix.arch }}-continente-mcp:latest
+          docker push ghcr.io/jpch/${{ matrix.arch }}-cesto:${{ steps.meta.outputs.version }}
+          docker push ghcr.io/jpch/${{ matrix.arch }}-cesto:latest
       - name: Summary
         if: always()
         run: |

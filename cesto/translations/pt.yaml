@@ -1,0 +1,18 @@
+configuration:
+  test_mode:
+    name: Modo de teste
+    description: "Ligado: as alterações ao carrinho são só simuladas. Desligado: o add-on altera o seu carrinho Continente real. Em nenhum caso pode finalizar a compra, pagar ou fazer encomendas."
+  log_level:
+    name: Nível de registo
+  ai_provider:
+    name: Fornecedor de IA
+    description: "IA opcional para escolher sugestões de promoções (e, mais tarde, identificar produtos em fotografias). none: nada é enviado para fora e as sugestões vêm de uma pesquisa no Continente. openai ou anthropic: os nomes dos artigos da lista e as promoções candidatas são enviados a esse fornecedor."
+  ai_api_key:
+    name: Chave API da IA
+    description: Chave API do fornecedor de IA escolhido. Deixe vazia com o fornecedor none.
+  ai_model:
+    name: Modelo de IA
+    description: Nome do modelo, opcional. Vazio usa o predefinido (gpt-4o-mini na OpenAI, claude-3-5-haiku-latest na Anthropic).
+  connectors:
+    name: Supermercados
+    description: Conectores de supermercado ativos. Por agora só continente.
