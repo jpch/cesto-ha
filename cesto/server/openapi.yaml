@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.0.0
+  version: 1.1.0
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -55,6 +55,7 @@ components:
                   package_text: { type: [string, "null"] }
                   price: { type: [object, "null"], description: "{amount {currency, minorUnits}, per item|piece|kg|l}" }
                   image_url: { type: [string, "null"] }
+                  thumbnail_url: { type: [string, "null"], description: "Small store image (https, allowlisted store image host only); null otherwise. The add-on never fetches it." }
                   promotions: { type: array, items: { type: object, description: "{kind recommended_price|immediate_discount|multi_buy|nth_unit_discount|other, label, bundle?, nthUnit?, percentOff?}" } }
     Error:
       type: object
@@ -135,6 +136,7 @@ components:
         price: { type: [object, "null"] }
         unit_price: { type: [object, "null"] }
         image_url: { type: [string, "null"] }
+        thumbnail_url: { type: [string, "null"], description: "Small store image (allowlisted store host only)" }
         availability: { type: string }
         promotions: { type: array, items: { type: object } }
     ItemInput:
@@ -446,7 +448,7 @@ paths:
                 image_base64: { type: string }
                 thumbnail_base64: { type: string }
       responses:
-        "200": { description: "{photo_id, source barcode|text|vision|none, query, candidates[{product_id, name, package_text, image_url, availability}] (max 5), thumbnail}" }
+        "200": { description: "{photo_id, source barcode|text|vision|none, query, candidates[{product_id, name, package_text, image_url, thumbnail_url, availability}] (max 5), thumbnail}" }
         "400": { description: invalid input }
   /photos/{id}/thumbnail:
     get:

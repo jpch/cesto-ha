@@ -1,8 +1,9 @@
 import type { CatalogReader, Product, Promotion } from './catalog.js';
+import { thumbnailUrl } from './thumbnails.js';
 import type { AiClient } from './ai.js';
 import type { Item } from './lists.js';
 
-export interface PromoProduct { product_id: string; name: string; package_text: string | null; price: Product['price'] | null; image_url: string | null; promotions: Promotion[] }
+export interface PromoProduct { product_id: string; name: string; package_text: string | null; price: Product['price'] | null; image_url: string | null; thumbnail_url: string | null; promotions: Promotion[] }
 export interface PromoSuggestion { item_id: number; item_name: string; query: string; product: PromoProduct; reason: string | null }
 export interface PromotionsResult {
   source: 'ai' | 'search';
@@ -18,7 +19,7 @@ const PER_ITEM = 3;
 const MAX_AI = 15;
 
 const toPromo = (p: Product): PromoProduct => ({
-  product_id: p.productId, name: p.name, package_text: p.packageText ?? null, price: p.price ?? null, image_url: p.imageUrl ?? null, promotions: p.promotions ?? [],
+  product_id: p.productId, name: p.name, package_text: p.packageText ?? null, price: p.price ?? null, image_url: p.imageUrl ?? null, thumbnail_url: thumbnailUrl(p.imageUrl), promotions: p.promotions ?? [],
 });
 
 /**

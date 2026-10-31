@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { thumbnailUrl } from './thumbnails.js';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tokens, type CatalogReader, type Product } from './catalog.js';
@@ -12,7 +13,7 @@ export function createProvider(name: string): VisionProvider {
 }
 
 export class PhotoError extends Error { constructor(readonly status: number, readonly key: string) { super(key); } }
-export interface Candidate { product_id: string; name: string; package_text: string | null; image_url: string | null; availability: string }
+export interface Candidate { product_id: string; name: string; package_text: string | null; image_url: string | null; thumbnail_url: string | null; availability: string }
 export interface PhotoResult { photo_id: string; source: 'barcode' | 'text' | 'vision' | 'none'; query: string | null; candidates: Candidate[]; thumbnail: boolean }
 export interface PhotoInput { barcode?: unknown; text?: unknown; image_base64?: unknown; thumbnail_base64?: unknown }
 
@@ -83,7 +84,7 @@ export class PhotoService {
   private async search(query: string, limit: number): Promise<Candidate[]> {
     const res = await this.catalog.searchProducts({ query, limit });
     return ((res.data?.products ?? []) as Product[]).slice(0, limit).map(p => ({
-      product_id: p.productId, name: p.name, package_text: p.packageText ?? null, image_url: p.imageUrl ?? null, availability: p.availability ?? 'unknown',
+      product_id: p.productId, name: p.name, package_text: p.packageText ?? null, image_url: p.imageUrl ?? null, thumbnail_url: thumbnailUrl(p.imageUrl), availability: p.availability ?? 'unknown',
     }));
   }
 }
