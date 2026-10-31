@@ -5,6 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-31
+### Added
+- Access log in the add-on log: every failed API request (status 400+) is logged as one line with method, path (no query string), status, `via=lan|ingress`, the caller (`token#<id>`, `ha-user` or `anonymous`), the auth failure cause (`no token`, `unknown or revoked token`) and the duration. Successful requests are logged too with `log_level: debug`. Tokens, headers and bodies are never logged.
+
+### Notes
+- "Could not read the favorites cache." comes from the bundled `continentept-mcp` and is harmless: its saved favourites snapshot is unreadable or belongs to another login (e.g. after a reinstall), so it fetches favourites live and rewrites the cache.
+
 ## [1.2.0] - 2026-10-31
 ### Added
 - Product search from outside home: `POST /catalog/search` is now reachable through Home Assistant ingress (tagged `remote`). It stays read-only and never touches the cart.
