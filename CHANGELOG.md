@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-31
+### Added
+- Product search from outside home: `POST /catalog/search` is now reachable through Home Assistant ingress (tagged `remote`). It stays read-only and never touches the cart.
+- Per-user rate limit on `POST /catalog/search` (10 per minute per HA user or add-on token, LAN and remote): 429 `error.rate_limited` with `Retry-After`.
+- The add-on reports its own Supervisor slug (from the container hostname, `ADDON_SLUG` overrides) in `GET /health` (`addon_slug`) and in the pairing QR (`&slug=`), so the app no longer relies on a hard-coded slug.
+
+### Fixed
+- `docs/remote-access.md` no longer names a fixed add-on slug.
+
 ## [1.1.0] - 2026-10-31
 ### Added
 - `thumbnail_url` on every product option the app shows (basket proposal options and selection, promotion suggestions, `POST /catalog/search` and `POST /photos` candidates): the store's own small image size (Continente CDN `sw`/`sh` = 120 px). Only https URLs on allowlisted store image hosts (`www.continente.pt`) get one; anything else is `null`. The add-on never fetches or proxies images (no SSRF surface).

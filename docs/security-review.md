@@ -32,3 +32,15 @@ Reviewed 2026-10-31 before release. Scope: product thumbnails in candidate lists
 | 13 | Android cache | Thumbnails are cached in the app's private cache dir (Coil disk cache, 50 MB, evictable by the OS); no list data is written there. | None | OK |
 | 14 | Item edits | Edits reuse the existing `PATCH /items/:id` (last write wins, `client_id`/`updated_at`); the linked product is validated server-side (`linkedProduct`: product id pattern, https-only image, length limits). Offline edits are queued in Room and replayed in order; a queued create carries the latest local state. No new route, no cart call: editing never touches the supermarket cart. | None | OK |
 | 15 | Dependencies | No new dependencies (server or app). `npm audit` unchanged. | None | OK |
+
+## Cesto 1.2.0 (add-on `cesto` 1.2.0, app `app.cesto` 1.2.0)
+
+Reviewed 2026-10-31 before release. Scope: product search from outside home and the add-on slug in pairing/health. Verdict: **no Critical or High findings; release allowed.**
+
+| # | Area | Finding | Severity | Status |
+|---|---|---|---|---|
+| 18 | Remote surface | `POST /catalog/search` joins `REMOTE_ROUTE`. It only calls the connector's read-only `search_products`/barcode lookup inside the add-on (stdio MCP child, never exposed); the cart, basket, jobs, photos, promotions, preferences and habits stay 403 through ingress. Authentication is unchanged (HA session/token via ingress). `test/remote.test.ts` keeps the openapi `remote` tags equal to the allowlist and asserts no cart call. | Low | Accepted |
+| 19 | Abuse / cost | A leaked HA token could drive searches (headless browser load, store traffic). Mitigated by a per-user in-memory limit (10/min, keyed by HA user id or add-on token id; 429 with `Retry-After`) and the existing serial job queue. Limiter memory is bounded by the number of users/tokens. | Low | Mitigated |
+| 20 | Information disclosure | `GET /health` (unauthenticated) now returns `addon_slug`. The slug is derivable from the public repository URL and grants nothing without an HA token. Validated against `^[a-z0-9]+_[a-z0-9_]+$`; anything else is `null`. | None | OK |
+| 21 | Pairing | The QR adds `&slug=`; the app validates it with the same pattern before storing it or putting it into a Supervisor endpoint path, so a crafted QR cannot point the WebSocket call at another Supervisor endpoint. | None | OK |
+| 22 | Dependencies | No new dependencies. | None | OK |
