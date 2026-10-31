@@ -68,3 +68,13 @@ Reviewed 2026-10-31 before release. Scope: continentept-mcp contract tests, adap
 | 30 | Secrets and personal data | The live check uses an empty temporary data directory and a minimal environment, so no credentials, cookies or sessions are read. Fixtures are anonymised and a test rejects e-mails, phone numbers, IPs, tokens, long opaque strings and non-store hosts. | None | OK |
 | 31 | Dependencies | New dev dependencies `ajv` 8.20.0 and `ajv-formats` 3.0.1 (tests only, pinned, not in the image). New action `actions/setup-node` pinned by SHA. `npm audit`: 0 vulnerabilities. | None | OK |
 
+## Cesto 1.3.1 (add-on `cesto` 1.3.1)
+
+Reviewed 2026-10-31 before release. Scope: asynchronous basket proposals. Verdict: **no Critical or High findings; release allowed.**
+
+| # | Area | Finding | Severity | Status |
+|---|---|---|---|---|
+| 32 | Exposure | Async proposals use the existing LAN-only `/basket/proposals` routes; the remote allowlist is unchanged. Matching is read-only (search, favourites, order history); no cart write, checkout or payment is added. | None | OK |
+| 33 | Resource use | A client could start runs repeatedly; only one async run exists at a time (a new request joins it), runs are serialized on the single MCP queue, and failed entries expire after 10 minutes. Requires a valid token. | Low | Accepted |
+| 34 | Information leak | A failed run reports only a fixed message key and HTTP status, never the raw upstream error text. | None | OK |
+

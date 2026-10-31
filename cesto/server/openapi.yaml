@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.3.0
+  version: 1.3.1
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -339,8 +339,9 @@ paths:
   /basket/proposals:
     post:
       summary: Match the pending items of the current list to Continente products (preference > frequent > favourite > search). Read-only on the account.
-      requestBody: { content: { application/json: { schema: { type: object, properties: { item_ids: { type: array, items: { type: integer } }, store: { type: string, description: "connector id; default the first enabled. One cart per supermarket." } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, properties: { item_ids: { type: array, items: { type: integer } }, store: { type: string, description: "connector id; default the first enabled. One cart per supermarket." }, async: { type: boolean, description: "Return 202 at once and match in the background; poll GET /basket/proposals/{id}. A second async request while one is matching returns the same run." } } } } } }
       responses:
+        "202": { description: "Async run started: {proposal_id, status: matching, progress: {done, total}, started_at}" }
         "201": { description: "Proposal {proposal_id, list_id, lines[]}; each line has selected, options (2-4 for generic items, up to 3 alternatives when out of stock), unavailable, needs_choice, quantity, quantity_basis (units|packs|weighed_pieces|weight|default), promo, skipped, error" }
         "409": { description: nothing pending to match }
         "503": { description: MCP not available }
@@ -348,7 +349,7 @@ paths:
     get:
       summary: Get a stored proposal
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
-      responses: { "200": { description: proposal }, "404": { description: not found } }
+      responses: { "200": { description: "proposal with status ready, or an async run with status failed and error {status, message_key}" }, "202": { description: "async run still matching, with progress {done, total}" }, "404": { description: not found } }
   /basket/proposals/{id}/lines/{item_id}:
     patch:
       summary: Choose a product, change the cart quantity, or skip a line
