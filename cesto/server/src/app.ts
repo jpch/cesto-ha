@@ -98,7 +98,28 @@ export class RateLimiter {
   }
 }
 
-export const REMOTE_ROUTE = /^\/api\/v1\/(health|openapi\.yaml|me|connectors|lists(\/current(\/changes|\/items|\/parse|\/clear)?|\/history(\/\d+\/repeat)?)?|items\/\d+|catalog\/search)$/;
+export const SESSION_CHECK_MIN_MS = 60_000;
+
+/** Coalesces app session checks: a single in-flight check and a minimum interval between real ones. */
+export class SessionChecks {
+  private last: { at: number; value: boolean | null } | null = null;
+  private inflight: Promise<boolean | null> | null = null;
+  constructor(private readonly run: () => Promise<boolean | null>, private readonly now: () => number = Date.now) {}
+
+  async check(): Promise<{ session_valid: boolean | null; checked_at: string; cached: boolean }> {
+    const reply = (v: { at: number; value: boolean | null }, cached: boolean) =>
+      ({ session_valid: v.value, checked_at: new Date(v.at).toISOString(), cached });
+    if (this.last && this.now() - this.last.at < SESSION_CHECK_MIN_MS) return reply(this.last, true);
+    if (!this.inflight) {
+      this.inflight = this.run().catch(() => null).finally(() => { this.inflight = null; });
+    }
+    const value = await this.inflight;
+    this.last = { at: this.now(), value };
+    return reply(this.last, false);
+  }
+}
+
+export const REMOTE_ROUTE = /^\/api\/v1\/(health|openapi\.yaml|me|connectors|lists(\/current(\/changes|\/items|\/parse|\/clear)?|\/history(\/\d+\/repeat)?)?|items\/\d+|catalog\/search|session\/check)$/;
 
 /**
  * 1.7.0, only with the `remote_cart` option: cart preparation through ingress. Checkout, payment and address
@@ -301,6 +322,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.delete('/api/v1/admin/login', async (_req, reply) => { deps.login?.cancel(); return reply.code(204).send(); });
+
+  // 1.8.0: the app's refresh re-checks the session. One check at a time, and at most one get_cart per
+  // SESSION_CHECK_MIN_MS whoever asks; within that window the last result is returned.
+  const sessionChecks = new SessionChecks(() => (deps.checkSession ? deps.checkSession() : Promise.resolve(null)));
+  app.post('/api/v1/session/check', async () => sessionChecks.check());
 
   app.post('/api/v1/admin/session/check', async () => ({ session_valid: deps.checkSession ? await deps.checkSession() : null }));
 
