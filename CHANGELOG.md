@@ -5,6 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-01
+
+### Added
+- `POST /api/v1/session/check` for the app's refresh (any token or HA user, LAN or remote): re-checks the Continente
+  session with a read-only `get_cart` at background priority. One check runs at a time and at most one per 60 s;
+  within that window the last result is returned (`cached: true`). The admin check is unchanged.
+
 ## [1.7.0] - 2026-10-31
 
 ### Added

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.7.0
+  version: 1.8.0
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -303,6 +303,11 @@ paths:
       summary: Cancel the sign-in session (HA ingress only)
       security: []
       responses: { "204": { description: Cancelled } }
+  /session/check:
+    post:
+      tags: [remote]
+      summary: "1.8.0: re-check the Continente session for the app's refresh (read-only get_cart through the MCP queue at background priority). Any token or HA user, LAN or remote. One check runs at a time and at most one per 60 s; within that window the last result is returned with cached: true."
+      responses: { "200": { description: "{session_valid: true|false|null, checked_at, cached}" } }
   /admin/session/check:
     post:
       summary: Check the Continente session with a read-only account call, get_cart (HA ingress only)
