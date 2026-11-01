@@ -91,6 +91,15 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  // 1.9.0: product name sent to the cart, for "Produtos já enviados". Old rows are backfilled from the product cache
+  // or from a list item linked to the same product, where available.
+  `
+  ALTER TABLE history_items ADD COLUMN product_name TEXT;
+  UPDATE history_items SET product_name = COALESCE(
+    (SELECT json_extract(c.json, '$.name') FROM product_cache c WHERE c.product_id = history_items.product_id AND json_valid(c.json)),
+    (SELECT json_extract(i.product_json, '$.name') FROM items i WHERE i.product_id = history_items.product_id AND json_valid(i.product_json) ORDER BY i.id DESC LIMIT 1)
+  ) WHERE product_id IS NOT NULL;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
