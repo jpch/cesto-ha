@@ -9,7 +9,7 @@ export function exportData(db: DatabaseSync, version: string) {
   const lists = db.prepare('SELECT * FROM lists ORDER BY id').all() as { id: number }[];
   const items = db.prepare('SELECT id, client_id, name, quantity, unit, note, category, added_by, state, created_at, updated_at, product_id, product_json, store FROM items WHERE list_id = ? AND deleted = 0 ORDER BY id');
   const runs = db.prepare('SELECT * FROM history_runs ORDER BY id').all() as { id: number }[];
-  const runItems = db.prepare('SELECT item_name, product_id, quantity, outcome FROM history_items WHERE run_id = ? ORDER BY id');
+  const runItems = db.prepare('SELECT item_name, product_id, quantity, outcome, product_name FROM history_items WHERE run_id = ? ORDER BY id');
   return {
     format: EXPORT_FORMAT,
     format_version: 2,
@@ -74,8 +74,8 @@ export function importData(db: DatabaseSync, data: unknown, stores: readonly str
       db.prepare('INSERT INTO history_runs (id, list_id, test_mode, status, estimated_total_cents, created_at) VALUES (?, ?, ?, ?, ?, ?)')
         .run(id, listExists ? listId : null, r.test_mode ? 1 : 0, s(r.status, 40) ?? 'unknown', n(r.estimated_total_cents), s(r.created_at) ?? now);
       for (const it of arr(r.items))
-        db.prepare('INSERT INTO history_items (run_id, item_name, product_id, quantity, outcome) VALUES (?, ?, ?, ?, ?)')
-          .run(id, s(it.item_name, 200) ?? '?', typeof it.product_id === 'string' && PRODUCT_ID.test(it.product_id) ? it.product_id : null, n(it.quantity), s(it.outcome, 40) ?? 'unknown');
+        db.prepare('INSERT INTO history_items (run_id, item_name, product_id, quantity, outcome, product_name) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(id, s(it.item_name, 200) ?? '?', typeof it.product_id === 'string' && PRODUCT_ID.test(it.product_id) ? it.product_id : null, n(it.quantity), s(it.outcome, 40) ?? 'unknown', s(it.product_name, 300));
       counts.runs++;
     }
     for (const p of arr(d.preferences)) {

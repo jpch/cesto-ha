@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-01
+### Added
+- `GET /api/v1/history/products` ("Produtos já enviados" in the app): products sent to the cart before, grouped by product (by item name when there is no product), ordered by number of cart sends (each send counts once). Test-mode runs and `not_applied`/`simulated` lines are excluded. List-level, available remotely.
+- `POST /api/v1/history/products/add` adds selected products to the current list as pending items, linked to the product when its name is known. It never touches the cart.
+- `history_items.product_name` is stored on every send; a migration backfills old rows from the product cache or from list items linked to the same product. Exports include it.
+
 ## [1.8.0] - 2026-11-01
 
 ### Added
