@@ -248,7 +248,7 @@ export class BasketService {
   private record(job: Job, p: Proposal, status: string): void {
     const run = this.db.prepare('INSERT INTO history_runs (list_id, test_mode, status, estimated_total_cents, created_at) VALUES (?, ?, ?, ?, ?)')
       .run(p.list_id, job.test_mode ? 1 : 0, status, null, new Date().toISOString());
-    const ins = this.db.prepare('INSERT INTO history_items (run_id, item_name, product_id, quantity, outcome) VALUES (?, ?, ?, ?, ?)');
-    for (const l of job.lines) ins.run(Number(run.lastInsertRowid), p.lines.find(x => x.item_id === l.item_id)?.item_name ?? '', l.product_id, l.desired, l.outcome);
+    const ins = this.db.prepare('INSERT INTO history_items (run_id, item_name, product_id, quantity, outcome, product_name) VALUES (?, ?, ?, ?, ?, ?)');
+    for (const l of job.lines) ins.run(Number(run.lastInsertRowid), p.lines.find(x => x.item_id === l.item_id)?.item_name ?? '', l.product_id, l.desired, l.outcome, l.name || null);
   }
 }

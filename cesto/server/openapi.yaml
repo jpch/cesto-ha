@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.8.0
+  version: 1.9.0
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -28,6 +28,26 @@ components:
     bearer: { type: http, scheme: bearer, description: "Add-on token (LAN only)" }
     haIngress: { type: apiKey, in: cookie, name: ingress_session, description: "Home Assistant ingress session (remote, list API only)" }
   schemas:
+    SentProduct:
+      type: object
+      required: [key, item_name, sends, last_sent_at]
+      properties:
+        key: { type: string, description: "p:<product_id> or n:<lower-cased item name>" }
+        item_name: { type: string }
+        product_id: { type: string, nullable: true }
+        product_name: { type: string, nullable: true }
+        sends: { type: integer, description: Number of cart sends that included it (each send once) }
+        last_sent_at: { type: string }
+    SentProductList:
+      type: object
+      required: [products]
+      properties:
+        products: { type: array, items: { $ref: '#/components/schemas/SentProduct' } }
+    SentProductsAdd:
+      type: object
+      required: [keys]
+      properties:
+        keys: { type: array, maxItems: 200, items: { type: string, maxLength: 320 } }
     Promotions:
       type: object
       required: [source, provider, generated_at, suggestions, ai_error]
@@ -270,6 +290,18 @@ paths:
       summary: Copy an archived list's items into the current list as pending (the cart is only reached through the preview)
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       responses: { "200": { description: OK }, "404": { description: Not found } }
+  /history/products:
+    get:
+      tags: [remote]
+      summary: "1.9.0: products sent to the cart before, grouped by product (or by item name without a product), most sends first. Test-mode runs and not_applied/simulated lines are excluded."
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/SentProductList' } } } }
+  /history/products/add:
+    post:
+      tags: [remote]
+      summary: "1.9.0: add the selected sent products to the current list as pending items (linked to the product when its name is known). Never touches the cart."
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SentProductsAdd' } } } }
+      responses: { "200": { description: "{items, version}" }, "400": { description: error.invalid_keys } }
   /admin/status:
     get:
       summary: Add-on status for the ingress page (HA ingress only)

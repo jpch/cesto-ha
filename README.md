@@ -51,7 +51,7 @@ proposals, line edits, preview, apply, job polling, promotions and photos are al
 same HA authentication, a limit of 30 cart changes per device per minute (`429`), and one log line per remote cart
 change (`[cesto] remote_cart POST /api/v1/basket/proposals/:id/apply 202 by=ha-user:<id> 120ms`, no ids or tokens).
 Checkout, payment, order and address paths are always refused remotely (the add-on has none anyway). `/api/v1/health`
-reports `remote_cart`. The app's refresh calls `POST /api/v1/session/check` (1.8.0, list-level, read-only, at most one real check per minute). Long work (matching, preview, apply) runs as jobs the app polls, so no remote request stays
+reports `remote_cart`. "Produtos já enviados" uses `GET /api/v1/history/products` and `POST /api/v1/history/products/add` (1.9.0, list-level, never touch the cart). The app's refresh calls `POST /api/v1/session/check` (1.8.0, list-level, read-only, at most one real check per minute). Long work (matching, preview, apply) runs as jobs the app polls, so no remote request stays
 open for long. Setup and proxy timeouts: [docs/remote-access.md](docs/remote-access.md).
 
 ## Promotion suggestions

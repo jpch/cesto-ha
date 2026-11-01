@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import { sentProducts } from './sent.js';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
@@ -119,7 +120,7 @@ export class SessionChecks {
   }
 }
 
-export const REMOTE_ROUTE = /^\/api\/v1\/(health|openapi\.yaml|me|connectors|lists(\/current(\/changes|\/items|\/parse|\/clear)?|\/history(\/\d+\/repeat)?)?|items\/\d+|catalog\/search|session\/check)$/;
+export const REMOTE_ROUTE = /^\/api\/v1\/(health|openapi\.yaml|me|connectors|lists(\/current(\/changes|\/items|\/parse|\/clear)?|\/history(\/\d+\/repeat)?)?|items\/\d+|catalog\/search|session\/check|history\/products(\/add)?)$/;
 
 /**
  * 1.7.0, only with the `remote_cart` option: cart preparation through ingress. Checkout, payment and address
@@ -404,6 +405,22 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.post('/api/v1/lists', async (_req, reply) => { lists.startNew(); return reply.code(201).send(snapshot()); });
 
   app.get('/api/v1/lists/history', async () => ({ lists: lists.history() }));
+
+  // 1.9.0: products sent to the cart before, most sent first; selected ones are added back to the current list.
+  app.get('/api/v1/history/products', async () => ({ products: sentProducts(deps.db) }));
+
+  app.post<{ Body: { keys?: unknown } }>('/api/v1/history/products/add', async (req, reply) => {
+    const keys = req.body?.keys;
+    if (!Array.isArray(keys) || keys.length === 0 || keys.length > 200 || !keys.every(k => typeof k === 'string' && k.length <= 320))
+      return reply.code(400).send(apiError('invalid_request', 'error.invalid_keys'));
+    const wanted = new Set(keys as string[]);
+    const chosen = sentProducts(deps.db, 10_000).filter(p => wanted.has(p.key));
+    const items = chosen.map(p => lists.add({
+      name: p.item_name,
+      product: p.product_id && p.product_name ? { product_id: p.product_id, name: p.product_name } : undefined,
+    }, req.principal!.name).item);
+    return { items, version: lists.currentVersion() };
+  });
 
   app.post<{ Params: { id: string } }>('/api/v1/lists/history/:id/repeat', async (req, reply) => {
     const items = lists.repeat(Number(req.params.id), req.principal!.name);
