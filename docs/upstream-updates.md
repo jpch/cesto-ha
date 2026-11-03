@@ -1,5 +1,7 @@
 # continentept-mcp contract and automated updates
 
+> **2.0.0:** the live check and the daily update workflow moved to the [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha), which installs `continentept-mcp`. Cesto keeps the snapshot, fixtures and adapters as contract tests (`test/contract`) and its allowlist on `HttpMcpTransport`; update the snapshot here when that add-on ships a new reviewed version.
+
 The add-on bundles the unofficial [`continentept-mcp`](https://www.npmjs.com/package/continentept-mcp) package, pinned by `ARG CONTINENTEPT_MCP_VERSION` in `cesto/Dockerfile`. It is used as published; it is never forked or patched.
 
 ## Contract tests

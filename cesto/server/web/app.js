@@ -28,28 +28,20 @@
     $('version').textContent = s.version;
     $('session').textContent = tr(s.session_valid === null ? 'status.session_unknown' : s.session_valid ? 'status.session_valid' : 'status.session_expired');
     $('queue').textContent = String(s.queue_length);
-    $('account-state').textContent = s.credentials.configured ? tr('account.configured', { email: s.credentials.email }) : tr('account.missing');
-    $('account-remove').hidden = !s.credentials.configured;
-    renderLogin(s.login);
+    renderContinente(s.continente);
     return s;
   }
 
-  function renderLogin(login) {
-    $('login-state').textContent = tr(`login.state.${login.state}`);
-    const active = login.state === 'starting' || login.state === 'waiting_user';
-    $('login-start').hidden = active;
-    $('login-cancel').hidden = !active;
-    const frame = $('vnc');
-    if (login.state === 'waiting_user' && frame.hidden) {
-      const base = location.pathname.replace(/[^/]*$/, '').replace(/^\//, '');
-      frame.src = `vnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=${encodeURIComponent(base + 'vnc/websockify')}`;
-      frame.hidden = false;
-    } else if (!active) {
-      frame.hidden = true;
-      frame.removeAttribute('src');
-    }
+  function renderContinente(c) {
+    $('cmcp-available').textContent = tr(!c ? 'continente.unknown' : c.available ? 'continente.available' : 'continente.unavailable');
+    $('cmcp-token').textContent = c ? tr(`continente.token_${c.token}`) : '';
+    $('cmcp-fingerprint').textContent = c ? c.fingerprint : '';
+    $('cmcp-approve').hidden = !c || c.token !== 'pending_approval';
+    const link = $('cmcp-open');
+    link.hidden = !(c && c.addon_slug);
+    if (c && c.addon_slug) link.href = `/hassio/ingress/${encodeURIComponent(c.addon_slug)}`;
     clearTimeout(polling);
-    if (active) polling = setTimeout(() => refresh().catch(fail), 2000);
+    if (c && (c.token === 'pending_approval' || c.signing_in)) polling = setTimeout(() => refresh().catch(fail), 5000);
   }
 
   async function loadTokens() {
@@ -70,15 +62,6 @@
   }
 
   $('check-session').onclick = async () => { show('status.checking'); await api('POST', 'admin/session/check').catch(fail); await refresh().catch(fail); show('common.done'); };
-  $('account-form').onsubmit = async e => {
-    e.preventDefault();
-    const f = new FormData(e.target);
-    try { await api('PUT', 'admin/credentials', { email: f.get('email'), password: f.get('password') }); e.target.reset(); show('account.saved'); } catch (err) { fail(err); }
-    refresh().catch(fail);
-  };
-  $('account-remove').onclick = async () => { if (!confirm(tr('account.remove_confirm'))) return; await api('DELETE', 'admin/credentials').catch(fail); refresh().catch(fail); };
-  $('login-start').onclick = async () => { try { renderLogin(await api('POST', 'admin/login')); } catch (e) { fail(e); } };
-  $('login-cancel').onclick = async () => { await api('DELETE', 'admin/login').catch(fail); refresh().catch(fail); };
   $('token-form').onsubmit = async e => {
     e.preventDefault();
     const f = new FormData(e.target);

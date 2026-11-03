@@ -19,3 +19,9 @@ configuration:
   connectors:
     name: Supermarkets
     description: Supermarket connectors to enable. Today only continente.
+  continente_mcp_url:
+    name: Continente MCP URL
+    description: "Optional. Leave empty to find the Continente MCP add-on automatically. Example: http://<host>:8100/mcp"
+  continente_mcp_token:
+    name: Continente MCP token
+    description: "Optional. Leave empty: Cesto creates its own token and asks for approval on the Continente MCP page (compare the fingerprint)."

@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-03
+### Changed
+- **Breaking for installs:** the Continente account, session, sign-in (noVNC) and browser moved to the new generic [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha). Cesto calls it over streamable HTTP with its own priority token. The image no longer contains `continentept-mcp`, Chromium, Xvnc, websockify or noVNC.
+- `PUT`/`DELETE /api/v1/admin/credentials` and `POST`/`DELETE /api/v1/admin/login` answer `410 error.moved_to_continente_mcp`; `GET /api/v1/admin/login` keeps its shape and mirrors the other add-on's sign-in. The add-on page shows the link state and a button to open the Continente MCP page.
+### Added
+- Discovery through `/share/continente-mcp/endpoint.json` (options `continente_mcp_url`, `continente_mcp_token` override it), a token request that carries only the token hash, and a one-time hand-off of the 1.x session and account.
+- `continente` in `GET /api/v1/health` and `GET /api/v1/admin/status`.
+- Continente calls fail with `503 error.continente_unavailable` when the add-on is missing or the token is not approved.
+### Removed
+- The daily `continentept-mcp` update workflow (it moved to the Continente MCP add-on). The reviewed tools snapshot and fixtures stay as Cesto's contract tests.
+
 ## [1.9.0] - 2026-11-01
 ### Added
 - `GET /api/v1/history/products` ("Produtos já enviados" in the app): products sent to the cart before, grouped by product (by item name when there is no product), ordered by number of cart sends (each send counts once). Test-mode runs and `not_applied`/`simulated` lines are excluded. List-level, available remotely.

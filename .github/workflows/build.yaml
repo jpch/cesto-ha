@@ -6,7 +6,6 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
-  # Also run by upstream-bump.yaml: PRs opened with GITHUB_TOKEN do not trigger pull_request runs.
   workflow_call:
     inputs:
       ref:
@@ -24,8 +23,8 @@ permissions:
 
 jobs:
   contract:
-    # continentept-mcp contract: recorded fixtures + tools/list of the pinned package over stdio.
-    # Never signs in to Continente; uses an empty data directory.
+    # 2.0.0: contract with the Continente MCP add-on: recorded continentept-mcp fixtures, the reviewed
+    # tools snapshot and the streamable HTTP link. No supermarket call.
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -40,21 +39,9 @@ jobs:
       - name: Install server dependencies
         working-directory: cesto/server
         run: npm ci
-      - name: Install the pinned continentept-mcp (no install scripts, no browser)
-        env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-        run: |
-          version=$(sed -nE 's/^ARG CONTINENTEPT_MCP_VERSION=([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' cesto/Dockerfile)
-          test -n "$version"
-          npm install -g --ignore-scripts "continentept-mcp@${version}"
-      - name: Contract tests (fixtures, adapters, allowlist)
+      - name: Contract tests (fixtures, adapters, allowlist, Continente MCP add-on link)
         working-directory: cesto/server
-        run: npx vitest run test/contract
-      - name: Live schema check (tools/list over stdio)
-        working-directory: cesto/server
-        run: |
-          set -o pipefail
-          npm run -s contract:check | tee -a "$GITHUB_STEP_SUMMARY"
+        run: npx vitest run test/contract test/continente-link.test.ts
 
   build:
     needs: contract
@@ -100,10 +87,10 @@ jobs:
       - name: Image size
         run: |
           docker image inspect cesto:test --format '{{.Architecture}} {{.Size}}' | tee size.txt
-      - name: Headless smoke test (search_products, read-only)
+      - name: Smoke test (API server, no bundled MCP)
         run: |
           docker run -d --name smoke --platform ${{ matrix.platform }} \
-            -e CONTINENTE_DATA_DIR=/tmp/continente --entrypoint sleep cesto:test infinity
+            --entrypoint sleep cesto:test infinity
           docker exec smoke uname -m
           docker exec smoke node --version
           docker exec -w /opt/smoke smoke node smoke.mjs

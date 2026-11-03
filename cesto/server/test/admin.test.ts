@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { buildApp } from '../src/app.js';
@@ -7,86 +7,33 @@ import { openDatabase } from '../src/db.js';
 import { LoginService } from '../src/login.js';
 import { testConfig } from './helpers.js';
 
-const node = (code: string) => ({ command: process.execPath, args: ['-e', code] });
-const fakeLogin = (loginCode: string, timeoutMs = 5000) => new LoginService({
-  display: node('setInterval(() => {}, 1000)'), websockify: node('setInterval(() => {}, 1000)'),
-  login: node(loginCode), env: {}, displayDelayMs: 10, timeoutMs,
-});
-const waitFor = async (fn: () => boolean) => { for (let i = 0; i < 200 && !fn(); i++) await new Promise(r => setTimeout(r, 25)); };
+const LINK = { available: true, url_source: 'discovered', addon_slug: '75545ee1_continente_mcp', version: '1.0.0', session_valid: true, signing_in: false, credentials_configured: true, token: 'approved', fingerprint: 'ABCD-1234', checked_at: null } as const;
 
-function setup(login?: LoginService) {
+function setup(continente?: () => typeof LINK) {
   const dataDir = mkdtempSync(join(tmpdir(), 'admin-'));
   const db = openDatabase(':memory:');
-  let restarts = 0;
-  const app = buildApp({ config: testConfig({ dataDir }), db, version: '0.1.0', login, onCredentialsChanged: () => { restarts++; }, checkSession: async () => true });
-  return { app, db, dataDir, restarts: () => restarts };
+  const app = buildApp({ config: testConfig({ dataDir }), db, version: '0.1.0', continente, checkSession: async () => true });
+  return { app, db, dataDir };
 }
 
 describe('admin page API', () => {
-  it('reports status with test mode and no saved account', async () => {
-    const { app } = setup();
-    const s = (await app.inject('/api/v1/admin/status')).json();
-    expect(s).toMatchObject({ test_mode: true, language: 'pt-PT', credentials: { configured: false, email: null }, login: { state: 'idle' } });
+  it('reports status with test mode and the Continente MCP link', async () => {
+    expect((await setup().app.inject('/api/v1/admin/status')).json()).toMatchObject({ test_mode: true, language: 'pt-PT', credentials: { configured: false, email: null }, login: { state: 'idle' }, continente: null });
+    const s = (await setup(() => LINK).app.inject('/api/v1/admin/status')).json();
+    expect(s.continente).toEqual(LINK);
+    expect(s.credentials).toEqual({ configured: true, email: null });
+    expect(JSON.stringify(s)).not.toMatch(/cmcp_/);
   });
 
-  it('saves the account to a 0600 file, never returns the password, and restarts the MCP', async () => {
-    const { app, dataDir, restarts } = setup();
-    const secret = 'S3gr3do!x';
-    expect((await app.inject({ method: 'PUT', url: '/api/v1/admin/credentials', payload: { email: 'user@example.org', password: secret } })).statusCode).toBe(204);
-    const file = join(dataDir, 'continente', 'credentials.env');
-    expect(statSync(file).mode & 0o777).toBe(0o600);
-    expect(statSync(join(dataDir, 'continente')).mode & 0o777).toBe(0o700);
-    expect(readFileSync(file, 'utf8')).toContain("CONTINENTE_EMAIL='user@example.org'");
-    const status = await app.inject('/api/v1/admin/status');
-    expect(status.body).not.toContain(secret);
-    expect(status.json().credentials).toEqual({ configured: true, email: 'us…@example.org' });
-    expect(restarts()).toBe(1);
-    expect((await app.inject({ method: 'DELETE', url: '/api/v1/admin/credentials' })).statusCode).toBe(204);
-    expect((await app.inject({ method: 'DELETE', url: '/api/v1/admin/credentials' })).statusCode).toBe(404);
-  });
-
-  it('rejects invalid account input with message keys', async () => {
-    const { app } = setup();
-    for (const [payload, key] of [[{ email: 'nope', password: 'x' }, 'error.invalid_email'], [{ email: 'user@example.org', password: '' }, 'error.invalid_password'], [{ email: 'user@example.org', password: "a'b" }, 'error.invalid_password'], [{ email: 'user@example.org', password: 'a\nCONTINENTE_EMAIL=x' }, 'error.invalid_password']] as const) {
-      const res = await app.inject({ method: 'PUT', url: '/api/v1/admin/credentials', payload });
-      expect(res.statusCode).toBe(400);
-      expect(res.json().error.message_key).toBe(key);
+  it('2.0.0: account and sign-in routes answer 410 moved; GET login keeps its shape', async () => {
+    const { app } = setup(() => ({ ...LINK, signing_in: true }));
+    for (const [method, url] of [['PUT', '/api/v1/admin/credentials'], ['DELETE', '/api/v1/admin/credentials'], ['POST', '/api/v1/admin/login'], ['DELETE', '/api/v1/admin/login']] as const) {
+      const res = await app.inject({ method, url, payload: method === 'PUT' ? { email: 'user@example.org', password: 'x' } : undefined });
+      expect(res.statusCode, `${method} ${url}`).toBe(410);
+      expect(res.json().error.message_key).toBe('error.moved_to_continente_mcp');
     }
-  });
-
-  it('sign-in needs a saved account, then runs display + noVNC + login and reports success', async () => {
-    const login = fakeLogin('setTimeout(() => process.exit(0), 100)');
-    const { app } = setup(login);
-    expect((await app.inject({ method: 'POST', url: '/api/v1/admin/login' })).statusCode).toBe(409);
-    await app.inject({ method: 'PUT', url: '/api/v1/admin/credentials', payload: { email: 'user@example.org', password: 'pw' } });
-    let succeeded = false;
-    login.on('success', () => { succeeded = true; });
-    const started = await app.inject({ method: 'POST', url: '/api/v1/admin/login' });
-    expect(started.statusCode).toBe(202);
-    expect(started.json().state).toBe('starting');
-    await waitFor(() => login.state === 'succeeded');
-    expect(succeeded).toBe(true);
-    expect((await app.inject('/api/v1/admin/login')).json().state).toBe('succeeded');
-  });
-
-  it('sign-in reports failure, timeout and cancel', async () => {
-    const failing = fakeLogin('process.exit(3)');
-    failing.start();
-    await waitFor(() => failing.state === 'failed');
-    expect(failing.state).toBe('failed');
-    const slow = fakeLogin('setInterval(() => {}, 1000)', 200);
-    slow.start();
-    await waitFor(() => slow.state === 'timed_out');
-    expect(slow.state).toBe('timed_out');
-    const cancelled = fakeLogin('setInterval(() => {}, 1000)');
-    cancelled.start();
-    cancelled.cancel();
-    expect(cancelled.state).toBe('cancelled');
-  });
-
-  it('noVNC is only proxied while a sign-in is open', async () => {
-    const { app } = setup(fakeLogin('process.exit(0)'));
-    expect((await app.inject('/vnc/vnc.html')).statusCode).toBe(409);
+    expect((await app.inject('/api/v1/admin/login')).json()).toEqual({ state: 'waiting_user', started_at: null, available: false });
+    expect((await app.inject('/vnc/vnc.html')).statusCode).toBe(404);
   });
 
   it('session check and JSON export', async () => {
@@ -108,7 +55,7 @@ describe('admin page API', () => {
     expect(page.headers['content-type']).toContain('text/html');
     expect((await app.inject('/web/i18n/pt-PT.json')).statusCode).toBe(200);
     expect((await app.inject('/web/../src/app.ts')).statusCode).toBe(404);
-    for (const url of ['/', '/web/app.js', '/vnc/vnc.html', '/api/v1/admin/export', '/api/v1/admin/status'])
+    for (const url of ['/', '/web/app.js', '/api/v1/admin/export', '/api/v1/admin/status'])
       expect((await app.inject({ url, remoteAddress: '192.0.2.50' })).statusCode, url).toBe(403);
   });
 });
@@ -128,15 +75,15 @@ describe('web i18n', () => {
     const used = [...html.matchAll(/data-i18n="([^"]+)"/g)].map(m => m[1]!);
     const js = web('app.js');
     used.push(...[...js.matchAll(/tr\('([a-z_.]+)'/g)].map(m => m[1]!));
-    for (const state of ['idle', 'starting', 'waiting_user', 'succeeded', 'failed', 'timed_out', 'cancelled']) used.push(`login.state.${state}`);
+    for (const state of ['option', 'pending_approval', 'approved', 'rejected']) used.push(`continente.token_${state}`);
     for (const key of used) expect(pt[key], key).toBeTruthy();
     const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     expect(text).toBe('');
   });
 
   it('every message key the server can return is translated', () => {
-    const src = ['app.ts', 'credentials.ts', 'web.ts'].map(f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')).join('\n');
-    const adminKeys = ['error.invalid_email', 'error.invalid_password', 'error.credentials_missing', 'error.login_unavailable', 'error.invalid_token_request', 'error.token_not_found', 'error.admin_ingress_only'];
+    const src = ['app.ts', 'web.ts'].map(f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')).join('\n');
+    const adminKeys = ['error.moved_to_continente_mcp', 'error.continente_unavailable', 'error.invalid_token_request', 'error.token_not_found', 'error.admin_ingress_only'];
     for (const k of adminKeys) { expect(src).toContain(k); expect(pt[k], k).toBeTruthy(); }
   });
 });

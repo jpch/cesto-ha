@@ -22,6 +22,12 @@ export interface Config {
   ingressAddress: string;
   /** This add-on's Supervisor slug (e.g. `0369824b_cesto`), used by the app to find its ingress URL; null outside HA. */
   addonSlug?: string | null;
+  /** 2.0.0: Continente MCP add-on endpoint override (default: discovered through /share). */
+  continenteMcpUrl?: string | null;
+  /** 2.0.0: agent token for the Continente MCP add-on (default: generated and approved through /share). */
+  continenteMcpToken?: string | null;
+  /** 2.0.0: shared folder with the Continente MCP add-on; '' disables it. */
+  shareDir?: string;
 }
 
 const LOG_LEVELS: readonly LogLevel[] = ['debug', 'info', 'warning', 'error'];
@@ -50,6 +56,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: Number(env.PORT ?? 8099),
     ingressAddress: env.INGRESS_ADDRESS ?? '172.30.32.2',
     addonSlug: addonSlug(env),
+    continenteMcpUrl: typeof raw.continente_mcp_url === 'string' && raw.continente_mcp_url.trim() ? raw.continente_mcp_url.trim() : null,
+    continenteMcpToken: typeof raw.continente_mcp_token === 'string' && raw.continente_mcp_token.trim() ? raw.continente_mcp_token.trim() : null,
+    shareDir: env.SHARE_DIR ?? '/share/continente-mcp',
   };
 }
 

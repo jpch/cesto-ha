@@ -96,3 +96,17 @@ Reviewed 2026-10-31 before release. Scope: async promotion search and unit-price
 | 36 | Exposure | The new `/promotions/searches` routes are not in the remote allowlist (LAN only, like `/promotions`); they need a phone token. | None | OK |
 | 37 | Cart safety | The search only calls `search_products`; it never reads or writes the cart, and no checkout or payment path exists. Adding an alternative uses the existing proposal line edit, which only changes the proposal. | None | OK |
 | 38 | Resource use | One search at a time (a new request joins it), at most 20 items, one queued MCP call per item; cancel stops after the current item; results expire after 30 minutes. | Low | Accepted |
+
+## Cesto 2.0.0 (add-on `cesto` 2.0.0)
+
+Reviewed 2026-11-03 before release (high risk: tokens and remote access). Scope: removal of the bundled MCP and
+sign-in, the link to the Continente MCP add-on, the token request and the session hand-off. Verdict: **no
+Critical or High findings; release allowed.**
+
+| # | Area | Finding | Severity | Status |
+|---|---|---|---|---|
+| 39 | Token | Cesto's token for the Continente MCP add-on is generated locally (32 random bytes), stored in `/data/continente-mcp/token` (0600) and sent only in the `Authorization` header to the discovered endpoint. `/share` gets only its SHA-256 hash; status and health show a 4+4 hex fingerprint, never the token. `test/continente-link.test.ts` checks it. | None | OK |
+| 40 | Discovery | `endpoint.json` is written by any add-on that maps `/share`. Cesto accepts only an `http://<hash>-continente-mcp:<port>/mcp` host (or `localhost`), so another add-on cannot redirect the token to an arbitrary host; a hostile add-on would need a `continente_mcp` slug from another repository. The `continente_mcp_url` option overrides discovery. | Low | Accepted |
+| 41 | Hand-off | The one-time copy of the 1.x session and account to `/share/continente-mcp/import/` (0700, READY last) is readable by other `/share` add-ons for a few seconds; see the Continente MCP add-on review, finding 8. The local copy stays for rollback. | Medium | Accepted |
+| 42 | API | No route changes its authentication. The removed account and sign-in routes answer 410; `remote_cart`, the remote allowlist and checkout/payment refusal are unchanged; the tool allowlist is now enforced on `HttpMcpTransport` before any request. Cart changes are never retried. | None | OK |
+| 43 | Image | The image no longer contains Chromium, Xvnc, websockify or noVNC (smaller attack surface; the smoke test asserts they are absent). | None | OK |
