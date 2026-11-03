@@ -102,7 +102,7 @@ components:
             addon_slug: { type: [string, "null"] }
             session_valid: { type: [boolean, "null"], description: "As reported by the Continente MCP add-on" }
             signing_in: { type: boolean }
-            token: { type: string, enum: [option, pending_approval, approved, rejected] }
+            token: { type: string, description: "option | pending_approval | approved | rejected (open set: clients must accept other values)" }
     Token:
       type: object
       properties:
