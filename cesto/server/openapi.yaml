@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cesto add-on API
-  version: 1.9.0
+  version: 2.0.0
   description: |
     HTTP API of the Cesto add-on. Errors return a message key, never user-facing text.
 
@@ -94,6 +94,15 @@ components:
         session_valid: { type: [boolean, "null"] }
         queue_length: { type: integer }
         addon_slug: { type: [string, "null"], description: "Supervisor slug of this add-on (1.2.0+), so the app can find its ingress URL" }
+        continente:
+          type: [object, "null"]
+          description: "2.0.0: link to the Continente MCP add-on, which owns the Continente account, session and sign-in. The app opens /hassio/ingress/<addon_slug> on Home Assistant to sign in."
+          properties:
+            available: { type: boolean, description: "The Continente MCP add-on answered its last health check (every 30 s)" }
+            addon_slug: { type: [string, "null"] }
+            session_valid: { type: [boolean, "null"], description: "As reported by the Continente MCP add-on" }
+            signing_in: { type: boolean }
+            token: { type: string, enum: [option, pending_approval, approved, rejected] }
     Token:
       type: object
       properties:
@@ -306,7 +315,7 @@ paths:
     get:
       summary: Add-on status for the ingress page (HA ingress only)
       security: []
-      responses: { "200": { description: "version, test_mode, language, session_valid, queue_length, credentials {configured, masked email}, login {state, started_at}" }, "403": { description: Not from ingress } }
+      responses: { "200": { description: "version, test_mode, language, session_valid, queue_length, credentials {configured, email: null}, login {state, started_at}, continente (2.0.0: link status with the token fingerprint, never the token)" }, "403": { description: Not from ingress } }
   /admin/metrics:
     get:
       summary: "Timing metrics from memory (HA ingress, admins only): per-tool calls/errors/p50/p95/max over the last 500 MCP calls, queue length and waiting jobs per priority, error codes, session_lost, throttled, captcha_or_sign_in_failures, cache entries/hits/misses and the last 20 of 100 job summaries. Tool names, durations and error codes only; never queries, products or cart contents."
@@ -314,27 +323,26 @@ paths:
       responses: { "200": { description: Metrics snapshot }, "403": { description: Not from ingress or not an admin }, "503": { description: Metrics unavailable } }
   /admin/credentials:
     put:
-      summary: Save the Continente account to /data/continente/credentials.env (0600); the password is never returned (HA ingress only)
+      summary: "2.0.0: moved to the Continente MCP add-on; always 410 error.moved_to_continente_mcp (HA ingress only)"
       security: []
-      requestBody: { content: { application/json: { schema: { type: object, required: [email, password], properties: { email: { type: string }, password: { type: string, writeOnly: true } } } } } }
-      responses: { "204": { description: Saved; the MCP process restarts on its next call }, "400": { description: Invalid }, "403": { description: Not from ingress } }
+      responses: { "410": { description: Moved }, "403": { description: Not from ingress } }
     delete:
-      summary: Remove the saved Continente account (HA ingress only)
+      summary: "2.0.0: moved to the Continente MCP add-on; always 410 (HA ingress only)"
       security: []
-      responses: { "204": { description: Removed }, "404": { description: None saved } }
+      responses: { "410": { description: Moved } }
   /admin/login:
     get:
-      summary: State of the on-demand sign-in session (HA ingress only)
+      summary: "Sign-in state (HA ingress only). 2.0.0: mirrors the Continente MCP add-on: waiting_user while a sign-in is open there, else idle; available is false"
       security: []
-      responses: { "200": { description: "state: idle | starting | waiting_user | succeeded | failed | timed_out | cancelled" } }
+      responses: { "200": { description: "{state, started_at: null, available: false}" } }
     post:
-      summary: Start a sign-in session (virtual display, noVNC at ./vnc/, visible browser) to complete the CAPTCHA (HA ingress only)
+      summary: "2.0.0: moved to the Continente MCP add-on page; always 410 (HA ingress only)"
       security: []
-      responses: { "202": { description: Started }, "409": { description: No saved account }, "503": { description: Not available } }
+      responses: { "410": { description: Moved } }
     delete:
-      summary: Cancel the sign-in session (HA ingress only)
+      summary: "2.0.0: moved to the Continente MCP add-on page; always 410 (HA ingress only)"
       security: []
-      responses: { "204": { description: Cancelled } }
+      responses: { "410": { description: Moved } }
   /session/check:
     post:
       tags: [remote]

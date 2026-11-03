@@ -1,5 +1,5 @@
 name: Cesto
-version: "1.9.0"
+version: "2.0.0"
 slug: cesto
 description: Self-hosted shared shopping list that prepares supermarket carts (Continente first). Never checks out or pays.
 url: https://github.com/jpch/cesto-ha
@@ -16,6 +16,9 @@ hassio_api: true
 ingress_port: 8099
 # Non-admin HA users may open ingress (remote list API only); the add-on page itself still requires an HA admin.
 panel_admin: false
+# 2.0.0: /share/continente-mcp is the hand-off with the Continente MCP add-on (endpoint, token request, session import).
+map:
+  - share:rw
 ports:
   8099/tcp: 8099
 options:
@@ -34,3 +37,5 @@ schema:
   ai_model: str?
   connectors:
     - list(continente)
+  continente_mcp_url: str?
+  continente_mcp_token: password?

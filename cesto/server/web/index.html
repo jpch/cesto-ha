@@ -25,23 +25,15 @@
   </section>
 
   <section>
-    <h2 data-i18n="account.title"></h2>
-    <p id="account-state"></p>
-    <form id="account-form" autocomplete="off">
-      <label><span data-i18n="account.email"></span><input type="email" name="email" required></label>
-      <label><span data-i18n="account.password"></span><input type="password" name="password" required autocomplete="new-password"></label>
-      <button type="submit" data-i18n="account.save"></button>
-      <button type="button" id="account-remove" data-i18n="account.remove"></button>
-    </form>
-  </section>
-
-  <section>
-    <h2 data-i18n="login.title"></h2>
-    <p data-i18n="login.help"></p>
-    <p id="login-state"></p>
-    <button id="login-start" data-i18n="login.start"></button>
-    <button id="login-cancel" data-i18n="login.cancel" hidden></button>
-    <iframe id="vnc" title="noVNC" hidden></iframe>
+    <h2 data-i18n="continente.title"></h2>
+    <p data-i18n="continente.help"></p>
+    <dl>
+      <dt data-i18n="continente.addon"></dt><dd id="cmcp-available"></dd>
+      <dt data-i18n="continente.token"></dt><dd id="cmcp-token"></dd>
+      <dt data-i18n="continente.fingerprint"></dt><dd><code id="cmcp-fingerprint"></code></dd>
+    </dl>
+    <p id="cmcp-approve" class="banner" hidden data-i18n="continente.approve_help"></p>
+    <a id="cmcp-open" target="_top" hidden data-i18n="continente.open"></a>
   </section>
 
   <section>

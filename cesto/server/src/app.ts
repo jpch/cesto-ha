@@ -1,4 +1,5 @@
-import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import { ContinenteUnavailableError } from './mcp/client.js';
 import { sentProducts } from './sent.js';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -6,12 +7,11 @@ import type { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { TokenStore, type TokenRecord } from './auth.js';
 import type { Config } from './config.js';
-import { CredentialsError, CredentialsStore } from './credentials.js';
+import type { LinkStatus } from './continente-link.js';
 import { exportData, importData, ImportError } from './export.js';
 import { describe as describeConnector, type Connector } from './connectors/types.js';
 import { continenteConnector } from './connectors/continente.js';
 import { normaliseAddress, PairingError, pairingUri, qrSvg } from './pairing.js';
-import type { LoginService } from './login.js';
 import { registerWeb } from './web.js';
 import { ListService, ValidationError, type ItemInput } from './lists.js';
 import { itemKey, type CatalogReader } from './catalog.js';
@@ -41,12 +41,10 @@ export interface AppDeps {
   version: string;
   queueLength?: () => number;
   sessionValid?: () => boolean | null;
-  credentials?: CredentialsStore;
-  login?: LoginService;
+  /** 2.0.0: state of the link to the Continente MCP add-on (which owns the account, session and sign-in). */
+  continente?: () => LinkStatus;
   /** Read-only account call that refreshes the session state. */
   checkSession?: () => Promise<boolean | null>;
-  /** Called after the Continente account changes (the MCP process must restart to read it). */
-  onCredentialsChanged?: () => void;
   /** Called after a successful write to the shared list (HA sensors). */
   onListChanged?: () => void;
   /** Read-only Continente catalogue (ContinenteMcp); matching routes return 503 without it. */
@@ -68,7 +66,6 @@ export interface AppDeps {
   /** Supermarket connectors; without it, catalog + cart form the Continente connector. */
   connectors?: Connector[];
   webDir?: string;
-  vncPort?: number;
 }
 
 /** Error bodies carry a message key, never user-facing text, so clients localise them. */
@@ -186,7 +183,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: deps.config.logLevel === 'debug' ? { level: 'debug' } : false });
   const tokens = new TokenStore(deps.db);
   let connectorInfo: () => ReturnType<typeof describeConnector>[] = () => [];
-  const credentials = deps.credentials ?? new CredentialsStore(deps.config.dataDir);
   const isIngressAddress = (ip: string | undefined) => ip === deps.config.ingressAddress || ip === `::ffff:${deps.config.ingressAddress}`;
   const isIngress = (req: FastifyRequest) => isIngressAddress(req.ip);
   const authNote = new WeakMap<FastifyRequest, string>();
@@ -251,6 +247,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     queue_length: deps.queueLength?.() ?? 0,
     addon_slug: deps.config.addonSlug ?? null,
     remote_cart: deps.config.remoteCart,
+    continente: continenteHealth(),
   }));
 
   app.get('/api/v1/openapi.yaml', async (_req, reply) =>
@@ -289,7 +286,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.delete<{ Params: { id: string } }>('/api/v1/admin/tokens/:id', async (req, reply) =>
     tokens.revoke(Number(req.params.id)) ? reply.code(204).send() : reply.code(404).send(apiError('not_found', 'error.token_not_found')));
 
-  const loginStatus = () => ({ state: deps.login?.state ?? 'idle', started_at: deps.login?.startedAt ?? null, available: !!deps.login });
+  // 2.0.0: the account, sign-in and browser moved to the Continente MCP add-on. The routes stay (same
+  // shapes for GET) so older pages and scripts get a clear answer instead of a 404.
+  const link = () => deps.continente?.() ?? null;
+  const loginStatus = () => ({ state: link()?.signing_in ? 'waiting_user' : 'idle', started_at: null, available: false });
+  const continenteHealth = () => {
+    const l = link();
+    return l ? { available: l.available, addon_slug: l.addon_slug, session_valid: l.session_valid, signing_in: l.signing_in, token: l.token } : null;
+  };
+  const moved = (_req: FastifyRequest, reply: FastifyReply) => reply.code(410).send(apiError('moved', 'error.moved_to_continente_mcp'));
 
   app.get('/api/v1/admin/status', async () => ({
     version: deps.version,
@@ -297,32 +302,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     language: deps.config.language,
     session_valid: deps.sessionValid?.() ?? null,
     queue_length: deps.queueLength?.() ?? 0,
-    credentials: credentials.status(),
+    credentials: { configured: link()?.credentials_configured ?? false, email: null },
     login: loginStatus(),
+    continente: link(),
   }));
 
-  app.put<{ Body: { email?: unknown; password?: unknown } }>('/api/v1/admin/credentials', async (req, reply) => {
-    credentials.save(req.body?.email, req.body?.password);
-    deps.onCredentialsChanged?.();
-    return reply.code(204).send();
-  });
-
-  app.delete('/api/v1/admin/credentials', async (_req, reply) => {
-    if (!credentials.remove()) return reply.code(404).send(apiError('not_found', 'error.credentials_missing'));
-    deps.onCredentialsChanged?.();
-    return reply.code(204).send();
-  });
-
+  app.put('/api/v1/admin/credentials', moved);
+  app.delete('/api/v1/admin/credentials', moved);
   app.get('/api/v1/admin/login', async () => loginStatus());
-
-  app.post('/api/v1/admin/login', async (_req, reply) => {
-    if (!deps.login) return reply.code(503).send(apiError('unavailable', 'error.login_unavailable'));
-    if (!credentials.status().configured) return reply.code(409).send(apiError('credentials_missing', 'error.credentials_missing'));
-    deps.login.start();
-    return reply.code(202).send(loginStatus());
-  });
-
-  app.delete('/api/v1/admin/login', async (_req, reply) => { deps.login?.cancel(); return reply.code(204).send(); });
+  app.post('/api/v1/admin/login', moved);
+  app.delete('/api/v1/admin/login', moved);
 
   // 1.8.0: the app's refresh re-checks the session. One check at a time, and at most one get_cart per
   // SESSION_CHECK_MIN_MS whoever asks; within that window the last result is returned.
@@ -340,9 +329,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerWeb(app, {
     webDir: deps.webDir ?? fileURLToPath(new URL('../web', import.meta.url)),
-    vncPort: deps.vncPort ?? 6080,
-    isIngressAddress,
-    vncActive: () => deps.login?.active ?? false,
   });
 
   const lists = new ListService(deps.db, undefined, deps.config.connectors);
@@ -352,7 +338,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (error instanceof PhotoError) return reply.code(error.status).send(apiError('invalid_request', error.key));
     if (error instanceof SearchError) return reply.code(error.status).send(apiError(error.status === 409 ? 'conflict' : error.status === 502 ? 'upstream' : 'invalid_request', error.key));
     if (error instanceof ProposalError) return reply.code(error.status).send(apiError(error.status === 404 ? 'not_found' : error.status === 409 ? 'conflict' : 'invalid_request', error.key));
-    if (error instanceof ValidationError || error instanceof CredentialsError) return reply.code(400).send(apiError('invalid_request', error.key));
+    if (error instanceof ContinenteUnavailableError) return reply.code(503).send(apiError('continente_unavailable', 'error.continente_unavailable'));
+    if (error instanceof ValidationError) return reply.code(400).send(apiError('invalid_request', error.key));
     const status = (error as { statusCode?: number }).statusCode ?? 500;
     if (status < 500) return reply.code(status).send(apiError('invalid_request', 'error.invalid_request'));
     app.log.error(error);

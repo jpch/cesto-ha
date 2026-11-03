@@ -1,5 +1,7 @@
 # Architecture: Continente Basket Builder
 
+> **2.0.0:** the MCP process, Chromium, the sign-in display and noVNC moved to the generic [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha). Cesto talks to it over streamable HTTP with its own priority token (`server/src/continente-link.ts`, `HttpMcpTransport` in `server/src/mcp/client.ts`). The sections below on the login service, Xvfb/noVNC and the stdio child describe 1.x and now apply to that add-on.
+
 Status: proposed (tech lead plan, v1). Source spec: [`jpch/assistente-compras/docs/spec.md`](https://github.com/jpch/assistente-compras/blob/main/docs/spec.md) (39 decisions).
 
 ## 1. Goal and constraints
