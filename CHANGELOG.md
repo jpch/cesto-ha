@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-11-03
+### Fixed
+- The Continente session and account hand-off runs once more for installs updated to 2.0.0, whose hand-off the Continente MCP add-on 1.0.1 skipped. The Continente MCP add-on still refuses it when it already has its own account or session.
+
 ## [2.0.0] - 2026-11-03
 ### Changed
 - **Breaking for installs:** the Continente account, session, sign-in (noVNC) and browser moved to the new generic [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha). Cesto calls it over streamable HTTP with its own priority token. The image no longer contains `continentept-mcp`, Chromium, Xvnc, websockify or noVNC.

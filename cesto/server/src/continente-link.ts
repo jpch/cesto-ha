@@ -61,6 +61,8 @@ export const REQUEST_NAME = 'Cesto';
 
 export const fingerprintOf = (hash: string) => `${hash.slice(0, 4)}-${hash.slice(4, 8)}`.toUpperCase();
 
+const HANDOFF_MARK = 'v2';
+
 export class ContinenteLink {
   private readonly tokenFile: string;
   private readonly secret: string;
@@ -172,10 +174,11 @@ export class ContinenteLink {
   handOffSession(): 'handed_off' | 'nothing' | 'done_before' | 'no_addon' {
     const src = join(this.o.dataDir, 'continente');
     const marker = join(this.o.dataDir, 'continente-mcp', 'handed-off');
-    if (existsSync(marker)) return 'done_before';
+    // Version 2 of the marker: hand-offs made by 2.0.0 were skipped by Continente MCP 1.0.1, so they run once more.
+    if (existsSync(marker) && readFileSync(marker, 'utf8').trim() === HANDOFF_MARK) return 'done_before';
     const ep = this.shareFile('endpoint.json');
     if (!ep || !existsSync(ep)) return 'no_addon';
-    if (!existsSync(src) || readdirSync(src).length === 0) { writeFileSync(marker, ''); return 'nothing'; }
+    if (!existsSync(src) || readdirSync(src).length === 0) { writeFileSync(marker, HANDOFF_MARK); return 'nothing'; }
     const imp = this.shareFile('import')!, tmp = imp + '.tmp';
     if (existsSync(imp)) return 'no_addon';
     rmSync(tmp, { recursive: true, force: true });
@@ -183,7 +186,7 @@ export class ContinenteLink {
     chmodSync(tmp, 0o700);
     renameSync(tmp, imp);
     writeFileSync(join(imp, 'READY'), '', { mode: 0o600 });
-    writeFileSync(marker, '');
+    writeFileSync(marker, HANDOFF_MARK);
     this.o.log?.('[continente] Continente session handed off to the Continente MCP add-on (the local copy is kept for rollback)');
     return 'handed_off';
   }
