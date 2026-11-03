@@ -19,3 +19,9 @@ configuration:
   connectors:
     name: Supermercados
     description: Conectores de supermercado ativos. Por agora só continente.
+  continente_mcp_url:
+    name: URL do Continente MCP
+    description: "Opcional. Deixe vazio para encontrar o add-on Continente MCP automaticamente. Exemplo: http://<host>:8100/mcp"
+  continente_mcp_token:
+    name: Token do Continente MCP
+    description: "Opcional. Deixe vazio: o Cesto cria o seu próprio token e pede aprovação na página do Continente MCP (compare a impressão digital)."
