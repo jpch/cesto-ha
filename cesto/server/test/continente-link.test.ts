@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Server as McpServer } from '@modelcontextprotocol/sdk/server/index.js';
@@ -88,6 +88,20 @@ describe('ContinenteLink', () => {
     expect(readdirSync(imp).sort()).toEqual(['READY', 'credentials.env', 'profile']);
     expect(statSync(imp).mode & 0o777).toBe(0o700);
     expect(existsSync(join(src, 'credentials.env'))).toBe(true);
+    expect(link.handOffSession()).toBe('done_before');
+  });
+
+  it('hands off once more when the marker is from 2.0.0', () => {
+    const d = dirs();
+    const src = join(d.dataDir, 'continente');
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(src, 'credentials.env'), 'x', { mode: 0o600 });
+    mkdirSync(join(d.dataDir, 'continente-mcp'), { recursive: true });
+    writeFileSync(join(d.dataDir, 'continente-mcp', 'handed-off'), '');
+    endpoint(d.shareDir, { hostname: 'localhost', port: 8100 });
+    const link = new ContinenteLink(d);
+    expect(link.handOffSession()).toBe('handed_off');
+    rmSync(join(d.shareDir, 'import'), { recursive: true });
     expect(link.handOffSession()).toBe('done_before');
   });
 
