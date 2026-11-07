@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
-    "fastify": "5.12.7",
+    "fastify": "5.12.8",
     "qrcode-generator": "2.0.4"
   },
   "devDependencies": {
