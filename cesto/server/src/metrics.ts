@@ -154,7 +154,7 @@ export function jobLine(r: JobRecord): string {
   return `[cesto] job=${r.label} prio=${r.priority} ${r.ok ? 'ok' : 'failed'} wait_ms=${r.wait_ms} run_ms=${r.run_ms} calls=${r.calls} mcp_ms=${r.mcp_ms} cache_hits=${r.cache_hits} steps=${steps}`;
 }
 
-/** Times every MCP tool call. Sits between the test-mode guard and the stdio transport. */
+/** Times every MCP tool call. Sits between the test-mode guard and the HTTP transport to the Continente MCP add-on. */
 export class TimedTransport implements McpTransport {
   constructor(private readonly inner: McpTransport, private readonly metrics: Metrics, private readonly now: () => number = () => performance.now()) {}
   async callTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {

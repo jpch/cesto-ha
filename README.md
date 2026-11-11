@@ -22,7 +22,7 @@ the sign-in and serves MCP to any agent; Cesto is one of its agents.
 - **Migration from 1.x:** on the first start next to the Continente MCP add-on (1.0.2 or later), Cesto copies its
   old `/data/continente` (session and account) to `/share/continente-mcp/import/`. The other add-on imports it only
   if it has no account or session yet and deletes the hand-off at once.
-- **No Continente password in Cesto (2.0.2):** once that hand-off has been consumed and the Continente MCP add-on
+- **Removing the 1.x Continente password from Cesto (2.0.2):** once that hand-off has been consumed and the Continente MCP add-on
   reports its own account or a valid session (its public `/health`), Cesto deletes its old `/data/continente`
   (`credentials.env` and the browser profile). Until then it keeps it and checks again every 30 s. New Cesto backups
   then hold no Continente password; backups taken before that still do, so delete old Cesto backups you no longer
@@ -108,7 +108,7 @@ that are cheaper per kg or per litre (same product type, any brand or size, same
 - Edits the real Continente cart (add, change, remove), and can never check out, pay or place an order: a hard tool allowlist/denylist that no option turns off.
 - Optional test mode that only simulates cart changes.
 - HA sensors (server, Continente session, items in the list, last sync) and a notification when the session expires.
-- No Continente password in Cesto: the account and session live in the Continente MCP add-on (2.0.2 deletes the copy left by 1.x); never completes checkout or payment.
+- The Continente account and session live in the Continente MCP add-on; 2.0.2 deletes the copy left by 1.x once that add-on reports its own account or session (installs without it keep the old copy). Never completes checkout or payment.
 - Multi-language ready: the add-on web page ships in European Portuguese (default), with all user-facing strings in i18n files and no hardcoded text, so new languages can be added without code changes.
 
 ## Product matching
