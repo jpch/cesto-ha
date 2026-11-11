@@ -8,7 +8,7 @@ import { HaIntegration, listStats } from './ha.js';
 import { HttpMcpTransport, type McpTransport } from './mcp/client.js';
 import { CartWriter, ContinenteMcp, TestModeGuard } from './mcp/continente.js';
 import { JobQueue } from './queue.js';
-import { LogLimiter, Metrics, TimedTransport } from './metrics.js';
+import { LogLimiter, Metrics, RepeatedFailureLog, TimedTransport } from './metrics.js';
 import { CachedCatalog } from './cache.js';
 import { SessionKeepAlive } from './keepalive.js';
 import { continenteConnector } from './connectors/continente.js';
@@ -44,10 +44,12 @@ const checkSession = async () => {
 // The Continente MCP add-on's health (every 30 s, public, no secrets): availability, session and sign-in.
 // A session change seen there (e.g. after a sign-in on its page) is adopted here too.
 let lastRemoteSession: boolean | null = null;
+// A persistent purge failure (e.g. a read-only file) was logged every 30 s; now once, hourly, and on recovery.
+const purgeLog = new RepeatedFailureLog(line => console.log(line), '[continente] removing the old Continente data');
 const pollLink = async () => {
   try { link.handOffSession(); } catch (e) { console.log(`[continente] session hand-off failed: ${(e as Error).message}`); }
   const h = await link.refresh();
-  try { link.purgeLegacyData(); } catch (e) { console.log(`[continente] removing the old Continente data failed: ${(e as Error).message}`); }
+  try { link.purgeLegacyData(); purgeLog.ok(); } catch (e) { purgeLog.failed((e as Error).message); }
   const v = typeof h?.session_valid === 'boolean' ? h.session_valid : null;
   if (v !== null && v !== lastRemoteSession) { lastRemoteSession = v; if (v !== mcp.sessionValid) { catalog.clear(); void checkSession(); } }
   publishHa();

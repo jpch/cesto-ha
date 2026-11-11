@@ -4,12 +4,13 @@
  * Every read of an upstream `data` field goes through an adapter here, so a shape change in a new
  * continentept-mcp release has one place to fix. The contract tests (test/contract/) run each adapter
  * on recorded, anonymised fixtures that are themselves validated against the output schemas of the
- * continentept-mcp version the Continente MCP add-on pins (test/contract/upstream-tools.json).
+ * continentept-mcp versions Cesto supports (test/contract/upstream-tools*.json), and against the version the
+ * Continente MCP add-on pins (test/contract/pinned.test.ts).
  */
 import type { FrequentProduct, Money, Product } from '../catalog.js';
 import type { ToolResult } from './tools.js';
 
-/** Package these adapters read. The checked version is in test/contract/upstream-tools.json. */
+/** Package these adapters read. The checked versions are in test/contract/upstream-tools*.json. */
 export const UPSTREAM_PACKAGE = 'continentept-mcp';
 
 type Rec = Record<string, unknown>;
@@ -85,7 +86,9 @@ export const estimatedCostOf = (r: ToolResult): Money | null => (dataOf(r)?.esti
 export type MutationOutcome = 'confirmed' | 'not_applied' | 'unknown' | 'simulated';
 /**
  * Outcome of a cart mutation: `data.outcome` on success, `mutation.outcome` on an error. Anything
- * unreadable is `unknown`, which stops a job and is never replayed.
+ * unreadable is `unknown`, which stops a job and is never replayed. `mutation.recovery.action` is ignored:
+ * Cesto always reads the cart with get_cart after an unknown outcome (0.13.0 may suggest list_coupons, which
+ * Cesto never calls).
  */
 export function mutationOutcome(r: ToolResult): MutationOutcome {
   if (r.simulated) return 'simulated';

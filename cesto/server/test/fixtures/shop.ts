@@ -7,6 +7,8 @@ export class FakeShop implements McpTransport {
   cart = new Map<string, number>();
   calls: { name: string; args: Record<string, unknown> }[] = [];
   unknownFor = new Set<string>();
+  /** `mutation.recovery.action` of an unknown outcome; continentept-mcp 0.13.0 may say `list_coupons`. */
+  recoveryAction = 'get_cart';
   notAppliedFor = new Set<string>();
   /** Silently drops a write (confirmed but not in the cart) to test verification. */
   dropFor = new Set<string>();
@@ -39,7 +41,7 @@ export class FakeShop implements McpTransport {
       }
       case 'set_cart_item_quantity': {
         const id = String(args.productId);
-        if (this.unknownFor.has(id)) { this.cart.set(id, Number(args.quantity)); return { status: 'error', error: { code: 'timeout', message: 'timeout' }, mutation: { outcome: 'unknown' } } as ToolResult; }
+        if (this.unknownFor.has(id)) { this.cart.set(id, Number(args.quantity)); return { status: 'error', error: { code: 'timeout', message: 'timeout' }, mutation: { outcome: 'unknown', recovery: { action: this.recoveryAction, automaticReplay: false } } } as ToolResult; }
         if (this.notAppliedFor.has(id)) return { status: 'error', error: { code: 'unavailable', message: 'x' }, mutation: { outcome: 'not_applied' } } as ToolResult;
         if (!this.dropFor.has(id)) this.cart.set(id, Number(args.quantity));
         return { status: 'success', data: {}, mutation: { outcome: 'confirmed' } } as ToolResult;

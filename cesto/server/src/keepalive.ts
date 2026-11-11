@@ -48,7 +48,7 @@ export class SessionKeepAlive {
     this.checks++;
     try {
       const valid = await this.o.check();
-      if (valid === false) this.o.log?.('[cesto] keep-alive: the Continente session has expired; sign in again from the add-on page.');
+      if (valid === false) this.o.log?.('[cesto] keep-alive: the Continente session has expired; sign in again on the Continente MCP add-on page.');
     } catch { /* the next tick tries again */ }
     return true;
   }

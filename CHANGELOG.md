@@ -5,6 +5,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-11-11
+### Changed
+- Reads continentept-mcp 0.13.0 as well as 0.12.1, so it keeps working when the Continente MCP add-on moves to
+  1.0.3. The 15 tools Cesto uses are unchanged in 0.13.0 except for the error envelope, where
+  `mutation.recovery.action` can now be `list_coupons`; Cesto ignores it and, as before, reads the cart with
+  `get_cart` after an unconfirmed change, never replaying it. The new `list_coupons` and `set_cart_coupons` tools
+  stay forbidden.
+- The keep-alive log line for an expired session now says to sign in on the Continente MCP add-on page.
+### Fixed
+- A persistent failure to delete the old Cesto 1.x Continente data was logged every 30 s. It is now logged once,
+  again when the error changes, as an hourly reminder with the count, and when it succeeds.
+### Added
+- Contract tests for both continentept-mcp versions (`test/contract/upstream-tools.json` is 0.13.0,
+  `upstream-tools-0.12.1.json` is kept) and `test/contract/pinned.test.ts`, which checks Cesto against the version
+  the Continente MCP add-on pins in its `continente_mcp/Dockerfile` (CI checks out `jpch/continente-mcp-ha`).
+
 ## [2.0.2] - 2026-11-11
 ### Fixed
 - The Home Assistant "Continente session expired" notification linked to the Cesto page and told you to sign in
