@@ -5,7 +5,7 @@ import { loadConfig } from './config.js';
 import { ContinenteLink } from './continente-link.js';
 import { openDatabase } from './db.js';
 import { HaIntegration, listStats } from './ha.js';
-import { HttpMcpTransport, StdioMcpTransport, type McpTransport } from './mcp/client.js';
+import { HttpMcpTransport, type McpTransport } from './mcp/client.js';
 import { CartWriter, ContinenteMcp, TestModeGuard } from './mcp/continente.js';
 import { JobQueue } from './queue.js';
 import { LogLimiter, Metrics, TimedTransport } from './metrics.js';
@@ -19,14 +19,14 @@ const db = openDatabase(join(config.dataDir, 'app.db'));
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 
 // 2.0.0: the Continente account, session, sign-in and browser live in the Continente MCP add-on; Cesto calls
-// it over streamable HTTP with its own token. MCP_COMMAND (development only) runs a local stdio MCP instead.
+// it over streamable HTTP with its own token. For local runs, point `continente_mcp_url` at any MCP endpoint.
 const link = new ContinenteLink({
   dataDir: config.dataDir, shareDir: config.shareDir ?? '', url: config.continenteMcpUrl, token: config.continenteMcpToken,
   log: line => console.log(line),
 });
-const transport: McpTransport = process.env.MCP_COMMAND
-  ? new StdioMcpTransport({ command: process.env.MCP_COMMAND })
-  : new HttpMcpTransport({ endpoint: () => link.endpoint()?.url ?? null, token: () => link.token, onAuth: ok => link.noteAuth(ok) });
+const transport: McpTransport = new HttpMcpTransport({
+  endpoint: () => link.endpoint()?.url ?? null, token: () => link.token, onAuth: ok => link.noteAuth(ok), clientVersion: version,
+});
 const testMode = () => config.testMode;
 // Timing instrumentation (1.5.0): stdout only (Supervisor rotates it), capped at 60 lines a minute.
 const logLimiter = new LogLimiter(line => console.log(line), 60, 60_000);
@@ -47,13 +47,17 @@ let lastRemoteSession: boolean | null = null;
 const pollLink = async () => {
   try { link.handOffSession(); } catch (e) { console.log(`[continente] session hand-off failed: ${(e as Error).message}`); }
   const h = await link.refresh();
+  try { link.purgeLegacyData(); } catch (e) { console.log(`[continente] removing the old Continente data failed: ${(e as Error).message}`); }
   const v = typeof h?.session_valid === 'boolean' ? h.session_valid : null;
   if (v !== null && v !== lastRemoteSession) { lastRemoteSession = v; if (v !== mcp.sessionValid) { catalog.clear(); void checkSession(); } }
   publishHa();
 };
 // Home Assistant entities and the session-expired notification (Supervisor API).
 const ha = process.env.SUPERVISOR_TOKEN
-  ? new HaIntegration({ supervisorUrl: 'http://supervisor', token: process.env.SUPERVISOR_TOKEN, language: config.language, log: m => console.log(m) })
+  ? new HaIntegration({
+    supervisorUrl: 'http://supervisor', token: process.env.SUPERVISOR_TOKEN, language: config.language, log: m => console.log(m),
+    continenteSlug: () => link.status().addon_slug,
+  })
   : undefined;
 let haTimer: NodeJS.Timeout | undefined;
 const publishHa = () => {

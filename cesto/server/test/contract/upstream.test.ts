@@ -1,8 +1,9 @@
 /**
  * Contract tests for continentept-mcp (no Continente login needed, safe for CI).
  *
- * - upstream-tools.json is the reviewed snapshot of tools/list (names, input and output schemas) from
- *   the installed package; scripts/upstream-tools.mjs --check compares it with the live package.
+ * - upstream-tools.json is the reviewed snapshot of tools/list (names, input and output schemas) of the
+ *   continentept-mcp version the Continente MCP add-on pins; that add-on runs the live check against the
+ *   installed package (Cesto no longer installs it).
  * - fixtures/ holds recorded, anonymised results; each must validate against its tool's output schema,
  *   and each adapter in src/mcp/upstream.ts is checked against them.
  */
@@ -15,14 +16,14 @@ import { CartWriter, ContinenteMcp, MutationBlockedError, TestModeGuard } from '
 import type { McpTransport } from '../../src/mcp/client.js';
 import * as up from '../../src/mcp/upstream.js';
 import { quantityInCart } from '../../src/basket.js';
-import { FORBIDDEN, diff, normalise, report } from '../../scripts/upstream-tools.mjs';
+import { diff, normalise } from './snapshot.mjs';
 
 interface Tool { name: string; inputSchema: object; outputSchema: object }
 const dir = new URL('./', import.meta.url);
 const snapshot = JSON.parse(readFileSync(new URL('upstream-tools.json', dir), 'utf8')) as { version: string; tools: Tool[] };
 const FIXTURES = readdirSync(new URL('fixtures/', dir)).filter(f => f.endsWith('.json')).sort();
 const raw = (name: string) => readFileSync(new URL(`fixtures/${name}.json`, dir), 'utf8');
-/** The ToolResult StdioMcpTransport returns: structuredContent.result. */
+/** The ToolResult HttpMcpTransport returns: structuredContent.result. */
 const fx = (name: string) => (JSON.parse(raw(name)) as { result: ToolResult }).result;
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
@@ -46,9 +47,7 @@ describe('upstream tool snapshot', () => {
     const live = [...snapshot.tools, { name: 'create_order', inputSchema: {}, outputSchema: {} }, { name: 'list_stores', inputSchema: {}, outputSchema: {} }];
     const d = diff(snapshot.tools, normalise(live));
     expect(d.added).toEqual(['create_order', 'list_stores']);
-    expect(report(d, '9.9.9')).toContain('`create_order` **(checkout/payment-like name');
-    expect(report(d, '9.9.9')).toContain('Auto-merge is blocked');
-    expect(FORBIDDEN.source).toBe(FORBIDDEN_TOOL.source);
+    expect(FORBIDDEN_TOOL.test('create_order')).toBe(true);
     expect(isForbidden('create_order')).toBe(true);
     expect(isForbidden('list_stores')).toBe(true);
   });

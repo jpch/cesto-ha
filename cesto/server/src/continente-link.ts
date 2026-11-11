@@ -11,8 +11,10 @@ import { join } from 'node:path';
  *   SHA-256 hash goes to `/share/continente-mcp/requests/cesto.json`; an HA admin approves it on the
  *   Continente MCP page, where the same fingerprint is shown. The token itself never leaves this add-on.
  * - One-time hand-off: an existing /data/continente (Cesto 1.x) is copied to `/share/continente-mcp/import/`
- *   (READY written last). The other add-on imports it only when it has no session yet, then deletes it. The
- *   original stays in /data for rollback.
+ *   (READY written last). The other add-on imports it only when it has no session yet, then deletes it.
+ * - 2.0.2: the 1.x copy (`credentials.env` with the Continente password, and the browser profile) is deleted
+ *   from /data once the hand-off is over and the Continente MCP add-on reports its own account or session, so
+ *   no Continente password stays in Cesto's data or in new backups of it.
  */
 export interface LinkOptions {
   dataDir: string;
@@ -35,6 +37,8 @@ export interface ContinenteHealth {
   queue_length?: number;
   addon_slug?: string | null;
 }
+
+export type LegacyPurge = 'purged' | 'none' | 'handoff_pending' | 'no_confirmation';
 
 export type TokenState = 'option' | 'pending_approval' | 'approved' | 'rejected';
 
@@ -187,7 +191,29 @@ export class ContinenteLink {
     renameSync(tmp, imp);
     writeFileSync(join(imp, 'READY'), '', { mode: 0o600 });
     writeFileSync(marker, HANDOFF_MARK);
-    this.o.log?.('[continente] Continente session handed off to the Continente MCP add-on (the local copy is kept for rollback)');
+    this.o.log?.('[continente] Continente session handed off to the Continente MCP add-on');
     return 'handed_off';
+  }
+
+  /**
+   * Deletes the Cesto 1.x Continente data (`/data/continente`: credentials.env and the browser profile) once
+   * it is no longer needed, and only then:
+   *  - the hand-off ran (current marker) and the Continente MCP add-on already consumed it (no `import/` left
+   *    in /share; it deletes it whether it imported or skipped it), and
+   *  - that add-on's last health check says it has its own account (`credentials_configured`) or a valid session.
+   * Otherwise nothing is touched and it tries again on the next poll.
+   */
+  purgeLegacyData(): LegacyPurge {
+    const src = join(this.o.dataDir, 'continente');
+    if (!existsSync(src)) return 'none';
+    const marker = join(this.o.dataDir, 'continente-mcp', 'handed-off');
+    const imp = this.shareFile('import');
+    const handedOff = existsSync(marker) && readFileSync(marker, 'utf8').trim() === HANDOFF_MARK;
+    if (!handedOff || !imp || existsSync(imp) || existsSync(imp + '.tmp')) return 'handoff_pending';
+    const h = this.health;
+    if (!h || !(h.credentials_configured === true || h.session_valid === true)) return 'no_confirmation';
+    rmSync(src, { recursive: true, force: true });
+    this.o.log?.('[continente] old Cesto 1.x Continente account and browser profile deleted: the Continente MCP add-on has its own');
+    return 'purged';
   }
 }

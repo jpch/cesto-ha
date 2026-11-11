@@ -19,10 +19,14 @@ the sign-in and serves MCP to any agent; Cesto is one of its agents.
   `/share/continente-mcp/requests/cesto.json`, asking for a priority token. An HA admin approves it on the
   Continente MCP page, comparing the fingerprint with the one on the Cesto page. The option `continente_mcp_token`
   (a token created on that page) skips the request.
-- **Migration from 1.x:** on the first start next to the Continente MCP add-on, Cesto copies its old
-  `/data/continente` (session and account) to `/share/continente-mcp/import/`. The other add-on imports it only if it
-  has no session yet and deletes the hand-off at once. Cesto keeps its old copy (rollback: restore a backup of the
-  Cesto add-on taken before the update and reinstall 1.9.0).
+- **Migration from 1.x:** on the first start next to the Continente MCP add-on (1.0.2 or later), Cesto copies its
+  old `/data/continente` (session and account) to `/share/continente-mcp/import/`. The other add-on imports it only
+  if it has no account or session yet and deletes the hand-off at once.
+- **No Continente password in Cesto (2.0.2):** once that hand-off has been consumed and the Continente MCP add-on
+  reports its own account or a valid session (its public `/health`), Cesto deletes its old `/data/continente`
+  (`credentials.env` and the browser profile). Until then it keeps it and checks again every 30 s. New Cesto backups
+  then hold no Continente password; backups taken before that still do, so delete old Cesto backups you no longer
+  need. Rollback to 1.9.0 needs a backup of the Cesto add-on taken before the update to 2.x.
 - `GET /api/v1/health` gains `continente: {available, addon_slug, session_valid, signing_in, token}`; nothing else
   in the API changes. `session_valid`, the session check, keep-alive, caches, priorities, `remote_cart` and metrics
   work as before.
@@ -36,11 +40,11 @@ app hides what a connector does not support. Enable connectors in the add-on opt
 
 | Connector | Search, cart, sign-in | Promotions | Purchase history | Barcode |
 | --- | --- | --- | --- | --- |
-| `continente` (unofficial [continentept-mcp](https://github.com/andredelgado/continente-mcp)) | yes | yes | yes | yes |
+| `continente` (unofficial [continentept-mcp](https://github.com/andredelgado/continente-mcp), through the [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha)) | yes | yes | yes | yes |
 
 Each list item can have a preferred supermarket (`store`), learned from your choices and editable; preparing the
-basket creates one cart per supermarket (`POST /api/v1/basket/proposals` with `store`). Supermarket passwords stay
-in the add-on only; the app never sees them.
+basket creates one cart per supermarket (`POST /api/v1/basket/proposals` with `store`). The app never sees a
+supermarket password; the Continente account lives only in the Continente MCP add-on.
 
 ## Connecting a phone
 
@@ -51,20 +55,30 @@ in the add-on only; the app never sees them.
 The app can also find the add-on on the home network (it looks for Home Assistant via mDNS and checks port 8099),
 or you can type the address and token by hand. List and preferences are shared by the whole household.
 
-## Migrating from the Continente MCP add-on
+## Migrating from the pre-1.0 add-on of this repository
 
-The add-on used to be called "Continente MCP" (slug `continente_mcp`). A new slug means a new add-on:
+Two different add-ons have been called "Continente MCP":
+
+- **Old (before Cesto 1.0.0):** this repository's add-on, before it was renamed to Cesto. Slug `continente_mcp`, it
+  bundled `continentept-mcp` itself. It is no longer published.
+- **Current:** the generic [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha) (version 1.0.x), from
+  another repository. It also uses the slug `continente_mcp`, but Home Assistant prefixes every slug with a hash of
+  its repository, so it is a separate add-on. Cesto 2.x needs it.
+
+If you still run the old one (Cesto 2.x updates from Cesto 1.x need none of this; see above):
 
 1. Install **Cesto** from this repository and start it (it starts empty, in test mode unless you turn it off).
 2. On the old add-on page, **Exportar** the data; on the Cesto page, **Importar dados** with that file (only works while Cesto is empty).
    Lists, items, purchase history and preferences are kept. Tokens and Continente credentials are not exported.
-3. Install the [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha) (2.0.0+), enter the Continente account on its page and sign in once there. On the Continente MCP page, approve the token request named "Cesto" (the fingerprint matches the one on the Cesto page).
+3. Install the current [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha) (1.0.2 or later), enter the Continente account on its page and sign in once there. On that page, approve the token request named "Cesto" (the fingerprint matches the one on the Cesto page).
 4. Stop the old add-on. Uninstall it once you are happy.
 
 ## Remote access (list, and optionally the cart)
 
-Away from home the app reaches the shared list API through Home Assistant ingress on your external HA URL,
-authenticated with an HA long-lived token (a non-admin HA user is enough). Port 8099 must not be forwarded.
+Away from home the app reaches the shared list API, the Continente catalogue search (`POST /api/v1/catalog/search`,
+read-only) and the session check through Home Assistant ingress on your external HA URL, authenticated with an HA
+long-lived token (a non-admin HA user is enough). Port 8099 must not be forwarded. The exact remote allowlists are
+`REMOTE_ROUTE` and `REMOTE_CART_ROUTE` in `cesto/server/src/app.ts`.
 
 The cart is LAN only unless you turn on the add-on option **`remote_cart`** (1.7.0, default `false`). With it on,
 proposals, line edits, preview, apply, job polling, promotions and photos are also allowed over ingress, with the
@@ -76,7 +90,8 @@ open for long. Setup and proxy timeouts: [docs/remote-access.md](docs/remote-acc
 
 ## Promotion suggestions
 
-`GET /api/v1/promotions` suggests products on promotion for the pending list items (LAN only, read-only). Set
+`GET /api/v1/promotions` suggests products on promotion for the pending list items (read-only; on the home network,
+and away from home through HA ingress only when `remote_cart` is on). Set
 `ai_provider` and `ai_api_key` in the add-on options to let an AI choose and explain them; with `none` (default)
 nothing leaves the server and the suggestions come from a Continente search of each item's category.
 
@@ -93,7 +108,7 @@ that are cheaper per kg or per litre (same product type, any brand or size, same
 - Edits the real Continente cart (add, change, remove), and can never check out, pay or place an order: a hard tool allowlist/denylist that no option turns off.
 - Optional test mode that only simulates cart changes.
 - HA sensors (server, Continente session, items in the list, last sync) and a notification when the session expires.
-- Continente credentials stored only on the server; never completes checkout or payment.
+- No Continente password in Cesto: the account and session live in the Continente MCP add-on (2.0.2 deletes the copy left by 1.x); never completes checkout or payment.
 - Multi-language ready: the add-on web page ships in European Portuguese (default), with all user-facing strings in i18n files and no hardcoded text, so new languages can be added without code changes.
 
 ## Product matching
@@ -106,7 +121,7 @@ The app reads the barcode and the packaging text on the phone (ML Kit) and sends
 
 ## Searching Continente for a product (linked items)
 
-After reading a product with the camera, the app can ask `POST /api/v1/catalog/search` (`query` = composed name, `barcode` optional) for candidates with image, size, price, price per kg/l and promotions. The product the user picks is saved on the list item (`product`), and the basket then uses exactly that product instead of matching the name again. Read-only; LAN only.
+After reading a product with the camera, the app can ask `POST /api/v1/catalog/search` (`query` = composed name, `barcode` optional) for candidates with image, size, price, price per kg/l and promotions. The product the user picks is saved on the list item (`product`), and the basket then uses exactly that product instead of matching the name again. Read-only; on the home network and away from home through HA ingress (1.2.0, at most 10 searches per minute per user).
 
 ## Filling the cart
 
@@ -132,17 +147,17 @@ The add-on never checks out or pays: you finish the order in the Continente app 
 
 - `cesto/`: the add-on (Debian trixie base, Node.js 22). Since 2.0.0 it bundles no MCP, browser or noVNC; see [Continente MCP add-on](#continente-mcp-add-on-200).
 - `cesto/server/`: add-on HTTP API (Node.js 22, TypeScript, Fastify, built-in `node:sqlite`). Contract: [`openapi.yaml`](cesto/server/openapi.yaml), served at `/api/v1/openapi.yaml`. Unit tests (Vitest) run inside the image build on both architectures.
-- `cesto/rootfs/opt/smoke/`: headless smoke test that calls the read-only `search_products` tool. It never touches the cart.
+- `cesto/rootfs/opt/smoke/`: container smoke test: the API server starts, `/health` answers in test mode, unauthenticated calls are refused and no MCP, browser or VNC is bundled. No supermarket call.
 - `.github/workflows/build.yaml`: builds for `aarch64` and `amd64` and runs the smoke test.
 - `docs/`: architecture and task list.
 
-Supported architectures: `aarch64` (e.g. Raspberry Pi 5) and `amd64`. `armv7` is not supported because Playwright has no Chromium build for it, and Alpine is not used because Chromium needs glibc.
+Supported architectures: `aarch64` (e.g. Raspberry Pi 5) and `amd64`.
 
 Run the smoke test locally:
 
 ```sh
 docker build -t cesto:test cesto
-docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c cesto:test smoke.mjs
+docker run --rm --entrypoint node -w /opt/smoke cesto:test smoke.mjs
 ```
 
 ## API basics
@@ -155,10 +170,10 @@ docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c ce
 ### Continente connector, cart safety and test mode
 
 - **Hard tool policy** (`server/src/mcp/tools.ts`): only the 11 read tools and the 4 cart tools of continentept-mcp 0.12.1 are allowed. Anything else, and any name that mentions checkout, payment, placing/confirming an order, purchase, delivery slots, vouchers, coupons, billing or cards, is refused with `ForbiddenToolError` before it reaches the MCP. It is enforced on the HTTP transport itself, in `TestModeGuard` and in `ContinenteMcp`; there is no option to turn it off. continentept-mcp 0.12.1 has no checkout tool, and the allowlist keeps it that way if a future release adds one. `server/test/policy.test.ts` proves it with test mode off.
-- **Upstream contract** (`docs/upstream-updates.md`): every read of a continentept-mcp result goes through `server/src/mcp/upstream.ts`, checked against anonymised fixtures and the package's own schemas. CI and the image build fail if the installed package adds, removes or changes a tool; a daily workflow proposes updates and only auto-merges them when the contract is unchanged.
+- **Upstream contract** (`docs/upstream-updates.md`): every read of a continentept-mcp result goes through `server/src/mcp/upstream.ts`, checked against anonymised fixtures and the reviewed tool schemas of the version the Continente MCP add-on pins. The pin, the live check against the installed package and the daily update workflow live in that add-on.
 
 - The Continente MCP add-on is called over streamable HTTP. Read calls are retried once after a connection failure; cart mutations never are. When the add-on is missing or does not accept the token, Continente routes answer `503 error.continente_unavailable` and `/health` reports `continente.available: false`.
-- Cart changes go only through `CartWriter`. In test mode it returns a simulated result and never calls the MCP; a second guard on the transport refuses `add_cart_item`, `set_cart_item_quantity`, `remove_cart_item` and `clear_cart` while test mode is on. Tests run against a fake MCP (`server/test/fake-mcp.mjs`) and check that no mutating call reaches it.
+- Cart changes go only through `CartWriter`. In test mode it returns a simulated result and never calls the MCP; a second guard on the transport refuses `add_cart_item`, `set_cart_item_quantity`, `remove_cart_item` and `clear_cart` while test mode is on. Tests run against a fake Continente MCP add-on over streamable HTTP (`server/test/fake-mcp.mjs`) and check that no mutating call reaches it.
 - One MCP job runs at a time (single-worker queue); a `not_authenticated` error marks the Continente session as invalid (`session_valid` in `/health`).
 
 ### Shared list
@@ -171,11 +186,10 @@ docker run --rm --entrypoint node -w /opt/smoke -e CONTINENTE_DATA_DIR=/tmp/c ce
 
 ### Add-on page (HA ingress)
 
-Open the add-on from the Home Assistant sidebar ("Open web UI"). The page is in European Portuguese by default (English if the `language` is English); every string lives in `server/web/i18n/*.json`. It is only served through ingress: requests from the LAN to `/`, `/vnc/` or `/api/v1/admin/*` get 403.
+Open the add-on from the Home Assistant sidebar ("Open web UI"). The page is in European Portuguese by default (English if the `language` is English); every string lives in `server/web/i18n/*.json`. It is only served through ingress: requests from the LAN to `/` or `/api/v1/admin/*` get 403.
 
-- Status: version, test-mode banner, Continente session (with a "check session" button that does a read-only `get_cart`), queue length.
-- Continente account: email and password are written to `/data/continente/credentials.env` (0600, folder 0700). The password is never shown or returned; the page only shows a masked email.
-- Sign in (2.0.0): on the Continente MCP add-on page; the Cesto page links to it. The old `/api/v1/admin/credentials` and `POST`/`DELETE /api/v1/admin/login` routes answer `410 error.moved_to_continente_mcp`.
+- Status: version, test-mode banner, Continente session (with a "check session" button that does a read-only `get_cart`, and a link to the Continente MCP page while the session is expired), queue length.
+- Continente account and sign in (2.0.0): on the Continente MCP add-on page; the Cesto page links to it. Cesto stores no Continente password. The old `/api/v1/admin/credentials` and `POST`/`DELETE /api/v1/admin/login` routes answer `410 error.moved_to_continente_mcp`.
 - Connect a phone: one token per device, shown once as a QR code with the home network address; list and revoke tokens.
 - Export and import: lists, items, purchase runs and shared preferences as JSON (no tokens or credentials). Import only into an empty add-on.
 
@@ -190,7 +204,10 @@ Published through the Supervisor (`homeassistant_api`), refreshed every minute, 
 | `sensor.continente_list_items` | Pending items in the current list (attribute: total items) |
 | `sensor.continente_last_sync` | Time of the last list change |
 
-When the Continente session expires, a persistent notification links to the add-on page to sign in again; it is dismissed once the session is valid. These entities are created by the add-on (no `unique_id`), so they reappear after a Home Assistant restart within a minute.
+When the Continente session expires, a persistent notification links to the Continente MCP add-on page (slug from its `/health`; the add-ons page while it is unknown), where the sign-in happens; it is dismissed once the session is valid. These entities are created by the add-on (no `unique_id`), so they reappear after a Home Assistant restart within a minute.
+
+The `continente_` prefix comes from before the rename to Cesto. The entities are kept under these ids on purpose, so
+existing dashboards, automations and history keep working; the friendly names already say Cesto or describe the list.
 
 Run the server tests locally:
 
