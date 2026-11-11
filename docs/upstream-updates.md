@@ -1,6 +1,6 @@
 # continentept-mcp contract and updates
 
-Since 2.0.0 Cesto does not install the unofficial [`continentept-mcp`](https://www.npmjs.com/package/continentept-mcp)
+Cesto does not install the unofficial [`continentept-mcp`](https://www.npmjs.com/package/continentept-mcp)
 package. The [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha) installs it, and Cesto calls that
 add-on over streamable HTTP. The two add-ons share the pinned package version and split the work like this:
 
