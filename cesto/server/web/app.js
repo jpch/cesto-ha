@@ -28,6 +28,10 @@
     $('version').textContent = s.version;
     $('session').textContent = tr(s.session_valid === null ? 'status.session_unknown' : s.session_valid ? 'status.session_valid' : 'status.session_expired');
     $('queue').textContent = String(s.queue_length);
+    // Since 2.0.0 the sign-in happens on the Continente MCP add-on page, not here.
+    const signin = $('session-signin');
+    signin.hidden = !(s.session_valid === false && s.continente && s.continente.addon_slug);
+    if (!signin.hidden) signin.href = `/hassio/ingress/${encodeURIComponent(s.continente.addon_slug)}`;
     renderContinente(s.continente);
     return s;
   }

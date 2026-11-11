@@ -5,6 +5,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-11-11
+### Fixed
+- The Home Assistant "Continente session expired" notification linked to the Cesto page and told you to sign in
+  there. It now links to the Continente MCP add-on page (slug from that add-on's `/health`, the add-ons page while
+  it is unknown), where the sign-in happens since 2.0.0, and says so.
+- The add-on page said "Expirada: inicie sessão abaixo" although there is no sign-in on it any more. It now says to
+  sign in on the Continente MCP add-on, with a link to it while the session is expired.
+- The MCP client introduced itself to the Continente MCP add-on as version 2.0.0; it now sends the add-on version.
+  `package-lock.json` had a stale version.
+### Security
+- No Continente password stays in Cesto: the 1.x account file (`/data/continente/credentials.env`) and browser
+  profile, kept "for rollback" after the 2.0.0 hand-off, are deleted once the hand-off has been consumed and the
+  Continente MCP add-on reports its own account or a valid session. Until then nothing is deleted. New Cesto backups
+  no longer contain them; backups taken before still do.
+- `hassio_api` is off: the Supervisor API was only used to look up Cesto's own slug for the notification link. The
+  entities and the notification use the Core API (`homeassistant_api`) as before.
+### Removed
+- `StdioMcpTransport` and the `MCP_COMMAND` development switch (Cesto only talks to the Continente MCP add-on over
+  HTTP; use `continente_mcp_url` for local runs). Tests now use a fake Continente MCP add-on over streamable HTTP.
+- `scripts/upstream-tools.mjs` and `npm run contract:check`/`contract:write`: the live check against the installed
+  `continentept-mcp` lives in the Continente MCP add-on, which pins the package. The shape comparison the contract
+  tests use moved to `test/contract/snapshot.mjs`.
+### Changed
+- README and `docs/`: removed 1.x leftovers (credentials file, `/vnc/`, Playwright/armv7 note, the `search_products`
+  smoke test), fixed the migration section (the generic Continente MCP add-on is 1.0.x and has a different
+  repository from the pre-1.0 add-on of the same name), documented that catalogue search and (with `remote_cart`)
+  promotions work away from home, moved the pin to the Continente MCP add-on in `docs/upstream-updates.md` and
+  rewrote `docs/architecture.md` for 2.x. The `continente_` entity ids are kept on purpose.
+- Dependabot no longer proposes major `@types/node` updates: the image runs Node.js 22.
+- Dependencies: fastify 5.12.8, vitest 5.1.0, actions/setup-node 7.1.0 (pinned by commit SHA).
+
 ## [2.0.1] - 2026-11-03
 ### Fixed
 - The Continente session and account hand-off runs once more for installs updated to 2.0.0, whose hand-off the Continente MCP add-on 1.0.1 skipped. The Continente MCP add-on still refuses it when it already has its own account or session.

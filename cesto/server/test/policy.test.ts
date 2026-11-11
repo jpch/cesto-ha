@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { join } from 'node:path';
-import { StdioMcpTransport, type McpTransport } from '../src/mcp/client.js';
+import { HttpMcpTransport, type McpTransport } from '../src/mcp/client.js';
+import { startFakeMcp } from './fake-mcp.mjs';
 import { CartWriter, ContinenteMcp, TestModeGuard } from '../src/mcp/continente.js';
 import { ALLOWED_TOOLS, ForbiddenToolError, isForbidden, MUTATING_TOOLS, READ_TOOLS } from '../src/mcp/tools.js';
 import type { ToolResult } from '../src/mcp/tools.js';
@@ -31,10 +31,12 @@ describe('hard tool policy (no option can disable it)', () => {
     expect(inner.calls).toEqual([]);
   });
 
-  it('the stdio transport itself refuses checkout before starting or talking to the MCP', async () => {
-    const t = new StdioMcpTransport({ command: process.execPath, args: [join(__dirname, 'fake-mcp.mjs')] } as never);
+  it('the HTTP transport itself refuses checkout before talking to the Continente MCP add-on', async () => {
+    const fake = await startFakeMcp();
+    const t = new HttpMcpTransport({ endpoint: () => fake.url, token: () => fake.token });
     await expect(t.callTool('checkout', {})).rejects.toBeInstanceOf(ForbiddenToolError);
-    await t.close();
+    expect(fake.calls).toEqual([]);
+    await t.close(); await fake.close();
   });
 
   it('with test mode off, add, update, remove and clear really reach the account', async () => {

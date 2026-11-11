@@ -7,7 +7,14 @@ export interface HaOptions {
   language: string;
   fetchImpl?: typeof fetch;
   log?: (msg: string) => void;
+  /** Supervisor slug of the Continente MCP add-on (from its /health), where the sign-in happens; null if unknown. */
+  continenteSlug?: () => string | null;
 }
+
+/** Same shape the Continente link accepts (`<repository hash>_<name>`). */
+const SLUG = /^[a-z0-9]+_[a-z0-9_]+$/;
+/** Settings → Add-ons, when the Continente MCP add-on is not known yet. */
+export const ADDONS_PAGE = '/hassio/dashboard';
 
 export interface HaSnapshot {
   version: string;
@@ -34,7 +41,6 @@ export function haStrings(language: string): Record<string, string> {
 export class HaIntegration {
   private readonly fetch: typeof fetch;
   private readonly t: Record<string, string>;
-  private ingressUrl: string | null = null;
   private notified = false;
   private lastSession: boolean | null | undefined;
 
@@ -57,14 +63,13 @@ export class HaIntegration {
     }
   }
 
-  /** Link to the add-on page in the HA frontend, e.g. /hassio/ingress/abcd1234_cesto. */
-  async pageUrl(): Promise<string> {
-    if (!this.ingressUrl) {
-      const info = await this.call('GET', '/addons/self/info') as { data?: { slug?: string } } | undefined;
-      const slug = info?.data?.slug;
-      if (slug) this.ingressUrl = `/hassio/ingress/${slug}`;
-    }
-    return this.ingressUrl ?? '/hassio/ingress/cesto';
+  /**
+   * Link to the Continente MCP add-on page in the HA frontend (e.g. /hassio/ingress/abcd1234_continente_mcp),
+   * where the Continente sign-in happens since 2.0.0. Falls back to the add-ons page when the slug is unknown.
+   */
+  pageUrl(): string {
+    const slug = this.o.continenteSlug?.() ?? null;
+    return slug && SLUG.test(slug) ? `/hassio/ingress/${slug}` : ADDONS_PAGE;
   }
 
   private state(entity: string, state: string, attributes: Record<string, unknown>) {
@@ -95,7 +100,7 @@ export class HaIntegration {
     if (valid === this.lastSession) return;
     this.lastSession = valid;
     if (valid === false && !this.notified) {
-      const url = await this.pageUrl();
+      const url = this.pageUrl();
       await this.call('POST', '/core/api/services/persistent_notification/create', {
         notification_id: NOTIFICATION_ID,
         title: this.t['ha.session_expired.title'],

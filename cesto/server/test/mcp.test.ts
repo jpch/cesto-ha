@@ -1,30 +1,25 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
-import { StdioMcpTransport } from '../src/mcp/client.js';
+import { readFileSync } from 'node:fs';
+import { CLIENT_VERSION, HttpMcpTransport } from '../src/mcp/client.js';
 import { CartWriter, ContinenteMcp, MutationBlockedError, TestModeGuard } from '../src/mcp/continente.js';
 import { MUTATING_TOOLS, READ_TOOLS } from '../src/mcp/tools.js';
 import { JobQueue } from '../src/queue.js';
+import { startFakeMcp, type FakeMcp } from './fake-mcp.mjs';
 
-const FAKE = fileURLToPath(new URL('./fake-mcp.mjs', import.meta.url));
-const open: StdioMcpTransport[] = [];
+const open: { transport: HttpMcpTransport; fake: FakeMcp }[] = [];
 
-function setup(env: Record<string, string> = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'mcp-'));
-  const log = join(dir, 'calls.jsonl');
-  const transport = new StdioMcpTransport({ command: process.execPath, args: [FAKE], env: { FAKE_MCP_LOG: log, FAKE_MCP_STATE: join(dir, 'state'), ...env } });
-  open.push(transport);
-  const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l) as { name: string; args: unknown; pid: number }) : []);
-  return { transport, calls };
+async function setup(mode: 'ok' | 'not_authenticated' | 'drop_once' = 'ok') {
+  const fake = await startFakeMcp({ mode });
+  const transport = new HttpMcpTransport({ endpoint: () => fake.url, token: () => fake.token });
+  open.push({ transport, fake });
+  return { transport, calls: () => fake.calls };
 }
 
-afterEach(async () => { await Promise.all(open.splice(0).map(t => t.close())); });
+afterEach(async () => { await Promise.all(open.splice(0).map(async o => { await o.transport.close(); await o.fake.close(); })); });
 
 describe('MCP client', () => {
   it('calls read tools through the typed wrapper', async () => {
-    const { transport, calls } = setup();
+    const { transport, calls } = await setup();
     const mcp = new ContinenteMcp(new TestModeGuard(transport, () => true));
     const res = await mcp.searchProducts({ query: 'leite', limit: 3 });
     expect(res.status).toBe('success');
@@ -34,7 +29,7 @@ describe('MCP client', () => {
 
   it('test mode: no mutating tool ever reaches the MCP transport', async () => {
     let testMode = true;
-    const { transport, calls } = setup();
+    const { transport, calls } = await setup();
     const guard = new TestModeGuard(transport, () => testMode);
     const mcp = new ContinenteMcp(guard);
     const writer = new CartWriter(mcp, () => testMode);
@@ -62,12 +57,20 @@ describe('MCP client', () => {
     expect(calls().map(c => c.name)).toEqual(['preview_cart_changes', 'add_cart_item']);
   });
 
+  it('introduces itself to the add-on with the add-on version from package.json', async () => {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+    expect(CLIENT_VERSION).toBe(pkg.version);
+    const { transport } = await setup();
+    await new ContinenteMcp(transport).getCart();
+    expect(open.at(-1)!.fake.clients).toEqual([{ name: 'cesto-ha', version: pkg.version }]);
+  });
+
   it('lists all 15 tools in exactly one category', () => {
     expect(new Set([...READ_TOOLS, ...MUTATING_TOOLS]).size).toBe(15);
   });
 
   it('detects an expired session and emits a session event', async () => {
-    const { transport } = setup({ FAKE_MCP_MODE: 'not_authenticated' });
+    const { transport } = await setup('not_authenticated');
     const mcp = new ContinenteMcp(transport);
     const events: (boolean | null)[] = [];
     mcp.on('session', v => events.push(v));
@@ -79,18 +82,16 @@ describe('MCP client', () => {
     expect(events).toEqual([true, false]);
   });
 
-  it('restarts the MCP process after a crash and retries read calls', async () => {
-    const { transport, calls } = setup({ FAKE_MCP_MODE: 'crash_once' });
+  it('retries a read once after the connection to the add-on drops', async () => {
+    const { transport, calls } = await setup('drop_once');
     const mcp = new ContinenteMcp(transport);
     const res = await mcp.getCart();
     expect(res.status).toBe('success');
-    expect(transport.restarts).toBe(1);
-    const pids = new Set(calls().map(c => c.pid));
-    expect(pids.size).toBe(2);
+    expect(calls().map(c => c.name)).toEqual(['get_cart', 'get_cart']);
   });
 
-  it('never retries a mutation after a crash', async () => {
-    const { transport, calls } = setup({ FAKE_MCP_MODE: 'crash_once' });
+  it('never retries a mutation after the connection drops', async () => {
+    const { transport, calls } = await setup('drop_once');
     const writer = new CartWriter(new ContinenteMcp(transport), () => false);
     await expect(writer.addItem('1', 1)).rejects.toBeDefined();
     expect(calls().filter(c => c.name === 'add_cart_item')).toHaveLength(1);

@@ -3,8 +3,8 @@
  *
  * Every read of an upstream `data` field goes through an adapter here, so a shape change in a new
  * continentept-mcp release has one place to fix. The contract tests (test/contract/) run each adapter
- * on recorded, anonymised fixtures that are themselves validated against the output schemas the
- * installed package publishes over stdio (test/contract/upstream-tools.json).
+ * on recorded, anonymised fixtures that are themselves validated against the output schemas of the
+ * continentept-mcp version the Continente MCP add-on pins (test/contract/upstream-tools.json).
  */
 import type { FrequentProduct, Money, Product } from '../catalog.js';
 import type { ToolResult } from './tools.js';

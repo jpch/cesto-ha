@@ -191,7 +191,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.addHook('onRequest', async (req, reply) => {
     const path = req.url.split('?')[0]!;
-    // The web page, noVNC and admin routes are only reachable through Home Assistant ingress.
+    // The web page and admin routes are only reachable through Home Assistant ingress.
     if (!path.startsWith('/api/v1/') || path.startsWith('/api/v1/admin/')) {
       if (!isIngress(req)) return reply.code(403).send(apiError('forbidden', 'error.admin_ingress_only'));
       // panel_admin is false so non-admin HA users can use the list remotely; the add-on page stays admin-only.
