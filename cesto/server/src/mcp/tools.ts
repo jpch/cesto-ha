@@ -1,4 +1,7 @@
-/** continentept-mcp 0.12.1 tools, split by whether they can change the real cart. */
+/**
+ * The continentept-mcp tools Cesto uses (the same in 0.12.1 and 0.13.0), split by whether they can change the
+ * real cart. 0.13.0's `list_coupons` and `set_cart_coupons` are not allowlisted and match FORBIDDEN_TOOL.
+ */
 export const READ_TOOLS = [
   'search_products', 'get_product', 'get_product_labels', 'choose_products', 'list_favorites',
   'get_cart', 'preview_cart_changes', 'list_orders', 'get_order', 'list_frequently_bought_products',

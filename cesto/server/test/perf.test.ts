@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JobQueue } from '../src/queue.js';
-import { LogLimiter, Metrics, Ring, TimedTransport, jobLine } from '../src/metrics.js';
+import { LogLimiter, Metrics, RepeatedFailureLog, Ring, TimedTransport, jobLine } from '../src/metrics.js';
 import { CachedCatalog, TtlCache } from '../src/cache.js';
 import { SessionKeepAlive } from '../src/keepalive.js';
 import { MutationBlockedError, TestModeGuard } from '../src/mcp/continente.js';
@@ -203,7 +203,7 @@ describe('SessionKeepAlive', () => {
     const log: string[] = [];
     const k = new SessionKeepAlive({ check: async () => false, sessionValid: () => null, signingIn: () => false, idleMs: () => 31 * 60_000, log: l => log.push(l) });
     await k.tick();
-    expect(log[0]).toMatch(/session has expired/);
+    expect(log[0]).toMatch(/session has expired; sign in again on the Continente MCP add-on page/);
     const e = new SessionKeepAlive({ check: async () => { throw new Error('x'); }, sessionValid: () => null, signingIn: () => false, idleMs: () => null });
     await expect(e.tick()).resolves.toBe(true);
   });
@@ -238,5 +238,25 @@ describe('job priorities at the call sites', () => {
     const s = new PromotionSearches({} as never, run) as unknown as { run: (j: () => Promise<number>) => Promise<number> };
     await s.run(async () => 1);
     expect(seen).toEqual([{ priority: 'background', label: 'promotions' }]);
+  });
+});
+
+describe('RepeatedFailureLog (2.0.3)', () => {
+  it('logs the first failure, a changed message, an hourly reminder and the recovery; not every tick', () => {
+    const lines: string[] = [];
+    let t = 0;
+    const l = new RepeatedFailureLog(x => lines.push(x), '[continente] removing the old Continente data', 60 * 60_000, () => t);
+    l.ok();
+    for (let i = 0; i < 120; i++) { t = i * 30_000; l.failed('EACCES'); } // one hour of 30 s ticks
+    expect(lines).toEqual(['[continente] removing the old Continente data failed: EACCES']);
+    t = 60 * 60_000; l.failed('EACCES');
+    expect(lines.at(-1)).toBe('[continente] removing the old Continente data still failing (121 times): EACCES');
+    l.failed('EROFS');
+    expect(lines.at(-1)).toBe('[continente] removing the old Continente data failed: EROFS');
+    l.ok(); l.ok();
+    expect(lines.at(-1)).toBe('[continente] removing the old Continente data succeeded after 122 failure(s)');
+    expect(lines).toHaveLength(4);
+    l.failed('EACCES');
+    expect(lines.at(-1)).toBe('[continente] removing the old Continente data failed: EACCES');
   });
 });

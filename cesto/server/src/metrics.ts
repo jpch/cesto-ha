@@ -32,6 +32,31 @@ export class LogLimiter {
   }
 }
 
+/**
+ * For a step that repeats on a timer (e.g. every 30 s) and may keep failing the same way: logs the first
+ * failure, a changed message, a reminder every `remindMs` with the count, and the recovery. Without it a
+ * persistent failure wrote one line per tick.
+ */
+export class RepeatedFailureLog {
+  private failures = 0;
+  private lastMessage: string | null = null;
+  private lastLogged = 0;
+  constructor(private readonly sink: (line: string) => void, private readonly what: string, private readonly remindMs = 60 * 60_000, private readonly now: () => number = Date.now) {}
+  failed(message: string): void {
+    this.failures++;
+    const t = this.now();
+    if (this.failures === 1 || message !== this.lastMessage) this.sink(`${this.what} failed: ${message}`);
+    else if (t - this.lastLogged >= this.remindMs) this.sink(`${this.what} still failing (${this.failures} times): ${message}`);
+    else return;
+    this.lastMessage = message;
+    this.lastLogged = t;
+  }
+  ok(): void {
+    if (this.failures) this.sink(`${this.what} succeeded after ${this.failures} failure(s)`);
+    this.failures = 0; this.lastMessage = null;
+  }
+}
+
 export interface CallRecord { at: string; tool: string; ms: number; ok: boolean; code: string | null; job: string | null; cached: boolean }
 export interface JobRecord {
   at: string; label: string; priority: JobPriority; wait_ms: number; run_ms: number; calls: number; mcp_ms: number; cache_hits: number;

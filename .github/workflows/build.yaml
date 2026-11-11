@@ -6,8 +6,17 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      continente_mcp_ha_ref:
+        description: "jpch/continente-mcp-ha ref whose pinned continentept-mcp Cesto is checked against"
+        type: string
+        default: main
   workflow_call:
     inputs:
+      continente_mcp_ha_ref:
+        description: "jpch/continente-mcp-ha ref whose pinned continentept-mcp Cesto is checked against"
+        type: string
+        default: main
       ref:
         description: "Git ref to build (default: the triggering ref)"
         type: string
@@ -33,15 +42,26 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
+      - name: Check out the Continente MCP add-on (for the continentept-mcp version it pins)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: jpch/continente-mcp-ha
+          ref: ${{ inputs.continente_mcp_ha_ref || 'main' }}
+          path: continente-mcp-ha
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: Install server dependencies
         working-directory: cesto/server
         run: npm ci
-      - name: Contract tests (fixtures, adapters, allowlist, Continente MCP add-on link)
+      - name: Contract tests (fixtures, adapters, allowlist, pinned continentept-mcp, Continente MCP add-on link)
         working-directory: cesto/server
-        run: npx vitest run test/contract test/continente-link.test.ts
+        env:
+          CONTINENTE_MCP_HA_DIR: ${{ github.workspace }}/continente-mcp-ha
+        run: |
+          echo "Continente MCP add-on pins: $(grep -E '^ARG CONTINENTEPT_MCP_VERSION=' "$CONTINENTE_MCP_HA_DIR/continente_mcp/Dockerfile")" | tee -a "$GITHUB_STEP_SUMMARY"
+          npx vitest run test/contract test/continente-link.test.ts
 
   build:
     needs: contract

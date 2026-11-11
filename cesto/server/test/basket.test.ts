@@ -96,6 +96,19 @@ describe('basket preview and apply', () => {
     expect(t.shop.calls.at(-1)!.name).toBe('get_cart');
     expect(j.cart_after).toBeTruthy();
   });
+  it('unknown outcome with recovery list_coupons (continentept-mcp 0.13.0): same handling, never calls the coupon tools', async () => {
+    const t = await setup(false);
+    t.shop.unknownFor.add('4421406');
+    t.shop.recoveryAction = 'list_coupons';
+    await t.add('leite', 2, 'un'); await t.add('arroz agulha', 1, 'kg');
+    const p = await t.propose();
+    const pv = (await t.preview(p.proposal_id)).json();
+    const j = await t.finished((await t.apply(p.proposal_id, pv.preview_id)).json().job_id);
+    expect(j).toMatchObject({ status: 'needs_attention', message_key: 'basket.unknown_outcome' });
+    expect(t.shop.mutations().filter(c => c.args.productId === '4421406')).toHaveLength(1);
+    expect(t.shop.calls.at(-1)!.name).toBe('get_cart');
+    expect(t.shop.calls.some(c => /coupon/.test(c.name))).toBe(false);
+  });
 
   it('not_applied and silently dropped lines are reported after verification', async () => {
     const t = await setup(false);

@@ -2,43 +2,41 @@
  * Contract tests for continentept-mcp (no Continente login needed, safe for CI).
  *
  * - upstream-tools.json is the reviewed snapshot of tools/list (names, input and output schemas) of the
- *   continentept-mcp version the Continente MCP add-on pins; that add-on runs the live check against the
- *   installed package (Cesto no longer installs it).
+ *   latest continentept-mcp version Cesto supports; upstream-tools-<version>.json keeps older versions an
+ *   add-on may still pin. The Continente MCP add-on runs the live check against the installed package
+ *   (Cesto no longer installs it); pinned.test.ts checks Cesto against the version that add-on pins.
  * - fixtures/ holds recorded, anonymised results; each must validate against its tool's output schema,
  *   and each adapter in src/mcp/upstream.ts is checked against them.
  */
-import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-import { ALLOWED_TOOLS, FORBIDDEN_TOOL, MUTATING_TOOLS, READ_TOOLS, isForbidden, type ToolResult } from '../../src/mcp/tools.js';
-import { CartWriter, ContinenteMcp, MutationBlockedError, TestModeGuard } from '../../src/mcp/continente.js';
-import type { McpTransport } from '../../src/mcp/client.js';
+import { ALLOWED_TOOLS, FORBIDDEN_TOOL, MUTATING_TOOLS, READ_TOOLS, isForbidden } from '../../src/mcp/tools.js';
+import { ContinenteMcp, MutationBlockedError, TestModeGuard, CartWriter } from '../../src/mcp/continente.js';
 import * as up from '../../src/mcp/upstream.js';
 import { quantityInCart } from '../../src/basket.js';
 import { diff, normalise } from './snapshot.mjs';
+import { FIXTURES, Replay, SNAPSHOTS, cestoCalls, fixturesFor, fx, raw, snapshot, validator as validatorIn } from './support.js';
 
-interface Tool { name: string; inputSchema: object; outputSchema: object }
-const dir = new URL('./', import.meta.url);
-const snapshot = JSON.parse(readFileSync(new URL('upstream-tools.json', dir), 'utf8')) as { version: string; tools: Tool[] };
-const FIXTURES = readdirSync(new URL('fixtures/', dir)).filter(f => f.endsWith('.json')).sort();
-const raw = (name: string) => readFileSync(new URL(`fixtures/${name}.json`, dir), 'utf8');
-/** The ToolResult HttpMcpTransport returns: structuredContent.result. */
-const fx = (name: string) => (JSON.parse(raw(name)) as { result: ToolResult }).result;
-
-const ajv = new Ajv2020({ strict: false, allErrors: true });
-addFormats(ajv);
-const tool = (name: string) => snapshot.tools.find(t => t.name === name)!;
-const validator = (name: string, kind: 'inputSchema' | 'outputSchema') => ajv.compile(tool(name)[kind]);
+const validator = (name: string, kind: 'inputSchema' | 'outputSchema') => validatorIn(snapshot, name, kind);
 
 describe('upstream tool snapshot', () => {
-  it('lists exactly the allowlisted tools: 11 read and 4 cart tools, nothing else', () => {
+  it('allowlists 11 read and 4 cart tools; every other upstream tool is forbidden', () => {
     expect(READ_TOOLS).toHaveLength(11);
     expect(MUTATING_TOOLS).toHaveLength(4);
-    expect(snapshot.tools.map(t => t.name).sort()).toEqual([...ALLOWED_TOOLS].sort());
+    for (const snap of SNAPSHOTS) {
+      const names = snap.tools.map(t => t.name);
+      for (const name of ALLOWED_TOOLS) expect(names, `${name} in ${snap.version}`).toContain(name);
+      for (const name of names.filter(n => !ALLOWED_TOOLS.includes(n))) expect(isForbidden(name), `${name} in ${snap.version}`).toBe(true);
+    }
+  });
+  it('0.13.0 adds only the coupon tools, which match FORBIDDEN_TOOL and are never allowlisted', () => {
+    const d = diff(SNAPSHOTS.find(s => s.version === '0.12.1')!.tools, snapshot.tools);
+    expect(snapshot.version).toBe('0.13.0');
+    expect(d.added).toEqual(['list_coupons', 'set_cart_coupons']);
+    expect(d.removed).toEqual([]);
+    for (const name of d.added) { expect(FORBIDDEN_TOOL.test(name), name).toBe(true); expect(ALLOWED_TOOLS).not.toContain(name); }
   });
   it('has an input and an output schema for every tool', () => {
-    for (const t of snapshot.tools) {
+    for (const t of SNAPSHOTS.flatMap(x => x.tools)) {
       expect(t.inputSchema, t.name).toBeTypeOf('object');
       expect(t.outputSchema, t.name).toBeTypeOf('object');
     }
@@ -66,18 +64,22 @@ describe('upstream tool snapshot', () => {
 
 describe('recorded fixtures', () => {
   it('cover every allowlisted tool with at least one success fixture', () => {
-    for (const name of ALLOWED_TOOLS) expect(FIXTURES.some(f => f.startsWith(`${name}.`) && fx(f.slice(0, -5)).status !== 'error'), name).toBe(true);
+    for (const name of ALLOWED_TOOLS) expect(FIXTURES.some(f => f.startsWith(`${name}.`) && fx(f).status !== 'error'), name).toBe(true);
   });
-  it.each(FIXTURES)('%s validates against the upstream output schema', file => {
+  it.each(SNAPSHOTS.flatMap(s => fixturesFor(s.version).map(f => [s.version, f] as const)))('%s: %s validates against the upstream output schema', (version, file) => {
     const [name] = file.split('.');
     expect(ALLOWED_TOOLS, file).toContain(name);
-    const validate = validator(name, 'outputSchema');
-    const ok = validate(JSON.parse(raw(file.slice(0, -5))));
+    const validate = validatorIn(SNAPSHOTS.find(s => s.version === version)!, name, 'outputSchema');
+    const ok = validate(JSON.parse(raw(file)));
     expect(ok, JSON.stringify(validate.errors?.slice(0, 3))).toBe(true);
+  });
+  it('the 0.13.0-only fixture really is new in 0.13.0 (0.12.1 rejects it)', () => {
+    const validate = validatorIn(SNAPSHOTS.find(s => s.version === '0.12.1')!, 'set_cart_item_quantity', 'outputSchema');
+    expect(validate(JSON.parse(raw('set_cart_item_quantity.unknown_coupons')))).toBe(false);
   });
   it('are anonymised: no e-mail, phone, IP, personal host, token or real order data', () => {
     for (const file of FIXTURES) {
-      const text = raw(file.slice(0, -5));
+      const text = raw(file);
       expect(text, file).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
       expect(text, file).not.toMatch(/\b\d{1,3}(\.\d{1,3}){3}\b/);
       expect(text, file).not.toMatch(/\b9\d{8}\b|\+351/);
@@ -131,6 +133,8 @@ describe('adapters (src/mcp/upstream.ts) on recorded shapes', () => {
     expect(up.mutationOutcome(fx('remove_cart_item.success'))).toBe('confirmed');
     expect(up.mutationOutcome(fx('clear_cart.success'))).toBe('confirmed');
     expect(up.mutationOutcome(fx('set_cart_item_quantity.unknown'))).toBe('unknown');
+    // 0.13.0: recovery may point at list_coupons; the outcome is still unknown and Cesto only reads the cart.
+    expect(up.mutationOutcome(fx('set_cart_item_quantity.unknown_coupons'))).toBe('unknown');
     expect(up.mutationOutcome(fx('set_cart_item_quantity.not_applied'))).toBe('not_applied');
     expect(up.mutationOutcome({ status: 'success', data: {} })).toBe('unknown');
     expect(up.mutationOutcome({ status: 'success', simulated: true })).toBe('simulated');
@@ -146,38 +150,12 @@ describe('adapters (src/mcp/upstream.ts) on recorded shapes', () => {
   });
 });
 
-/** Replays fixtures by tool name and records every call. */
-class Replay implements McpTransport {
-  calls: { name: string; args: Record<string, unknown> }[] = [];
-  constructor(private readonly answers: Record<string, string>) {}
-  async callTool(name: string, args: Record<string, unknown>) { this.calls.push({ name, args }); return fx(this.answers[name] ?? `${name}.success`); }
-  async close() {}
-}
-
 describe('our calls match the upstream input schemas', () => {
-  it('every ContinenteMcp and CartWriter call sends arguments the tool accepts', async () => {
-    const replay = new Replay({ get_session_status: 'get_session_status.authenticated' });
-    const mcp = new ContinenteMcp(new TestModeGuard(replay, () => false));
-    const cart = new CartWriter(mcp, () => false);
-    await mcp.searchProducts({ query: 'leite', limit: 5, favoritesFirst: true });
-    await mcp.getProduct('2000001');
-    await mcp.getProductLabels(['2000001']);
-    await mcp.chooseProducts([{ question: 'leite', productIds: ['2000001', '2000002'], suggested: '2000001' }]);
-    await mcp.listFavorites(true);
-    await mcp.getCart();
-    await mcp.previewCartChanges([{ productId: '2000001', quantity: 2 }]);
-    await mcp.listOrders({ limit: 5, includeLines: true });
-    await mcp.getOrder('order-0001');
-    await mcp.listFrequentlyBought({ orderLimit: 10, limit: 20 });
-    await mcp.getSessionStatus();
-    await cart.addItem('2000001', 1);
-    await cart.setQuantity('2000001', 3, 'line-a1');
-    await cart.removeItem('2000001');
-    await cart.clearCart();
-    const sent = new Set(replay.calls.map(c => c.name));
-    expect([...sent].sort()).toEqual([...ALLOWED_TOOLS].sort());
-    for (const c of replay.calls) {
-      const validate = validator(c.name, 'inputSchema');
+  it.each(SNAPSHOTS.map(s => s.version))('every ContinenteMcp and CartWriter call sends arguments continentept-mcp %s accepts', async version => {
+    const calls = await cestoCalls();
+    expect([...new Set(calls.map(c => c.name))].sort()).toEqual([...ALLOWED_TOOLS].sort());
+    for (const c of calls) {
+      const validate = validatorIn(SNAPSHOTS.find(s => s.version === version)!, c.name, 'inputSchema');
       expect(validate(c.args), `${c.name}: ${JSON.stringify(validate.errors?.slice(0, 2))}`).toBe(true);
     }
   });
