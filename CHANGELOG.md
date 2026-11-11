@@ -34,6 +34,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   promotions work away from home, moved the pin to the Continente MCP add-on in `docs/upstream-updates.md` and
   rewrote `docs/architecture.md` for 2.x. The `continente_` entity ids are kept on purpose.
 - Dependabot no longer proposes major `@types/node` updates: the image runs Node.js 22.
+- Dependencies: fastify 5.12.8, vitest 5.1.0, actions/setup-node 7.1.0 (pinned by commit SHA).
 
 ## [2.0.1] - 2026-11-03
 ### Fixed
