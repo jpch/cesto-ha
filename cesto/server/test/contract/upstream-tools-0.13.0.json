@@ -1,6 +1,6 @@
 {
   "package": "continentept-mcp",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "tools": [
     {
       "inputSchema": {
@@ -258,7 +258,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -843,7 +846,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -1159,7 +1165,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -2182,7 +2191,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -2764,7 +2776,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -3921,7 +3936,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -4550,7 +4568,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -4986,7 +5007,393 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
+                                "type": "string"
+                              },
+                              "automaticReplay": {
+                                "const": false,
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "action",
+                              "automaticReplay"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "outcome",
+                          "recovery"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "signIn": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "action": {
+                        "enum": [
+                          "configure_credentials",
+                          "check_credentials_or_sign_in",
+                          "confirm_not_a_robot"
+                        ],
+                        "type": "string"
+                      },
+                      "command": {
+                        "const": "continentept-mcp login --show-browser",
+                        "type": "string"
+                      },
+                      "credentials": {
+                        "enum": [
+                          "configured",
+                          "missing",
+                          "unknown"
+                        ],
+                        "type": "string"
+                      },
+                      "guide": {
+                        "format": "uri",
+                        "type": "string"
+                      },
+                      "publicTools": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "settings": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "claudeDesktopExtension": {
+                            "items": false,
+                            "maxItems": 2,
+                            "minItems": 2,
+                            "prefixItems": [
+                              {
+                                "const": "email",
+                                "type": "string"
+                              },
+                              {
+                                "const": "password",
+                                "type": "string"
+                              }
+                            ],
+                            "type": "array"
+                          },
+                          "environment": {
+                            "items": false,
+                            "maxItems": 2,
+                            "minItems": 2,
+                            "prefixItems": [
+                              {
+                                "const": "CONTINENTE_EMAIL",
+                                "type": "string"
+                              },
+                              {
+                                "const": "CONTINENTE_PASSWORD",
+                                "type": "string"
+                              }
+                            ],
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "environment",
+                          "claudeDesktopExtension"
+                        ],
+                        "type": "object"
+                      },
+                      "signInWindow": {
+                        "anyOf": [
+                          {
+                            "enum": [
+                              "opened",
+                              "already_open",
+                              "not_available"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "credentials",
+                      "action",
+                      "signInWindow",
+                      "settings",
+                      "command",
+                      "guide",
+                      "publicTools"
+                    ],
+                    "type": "object"
+                  },
+                  "status": {
+                    "const": "error",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "error"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "list_coupons",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "data": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "cartSelection": {
+                        "enum": [
+                          "read",
+                          "unavailable"
+                        ],
+                        "type": "string"
+                      },
+                      "completeness": {
+                        "enum": [
+                          "complete",
+                          "partial",
+                          "unknown"
+                        ],
+                        "type": "string"
+                      },
+                      "coupons": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "availability": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 300,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "benefitQualifier": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "benefitValue": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 100,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "couponId": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "description": {
+                              "maxLength": 1000,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "selectedInCart": {
+                              "type": [
+                                "boolean",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "couponId",
+                            "description",
+                            "availability",
+                            "benefitValue",
+                            "benefitQualifier",
+                            "selectedInCart"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "observedAt": {
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "coupons",
+                      "completeness",
+                      "cartSelection",
+                      "observedAt"
+                    ],
+                    "type": "object"
+                  },
+                  "status": {
+                    "enum": [
+                      "success",
+                      "empty",
+                      "partial"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "data"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "error": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "anyOf": [
+                          {
+                            "enum": [
+                              "invalid_data",
+                              "invalid_input",
+                              "not_authenticated",
+                              "upstream_unavailable",
+                              "not_found",
+                              "sale_rules_unknown",
+                              "quantity_below_minimum",
+                              "cart_change_rejected",
+                              "cart_change_unconfirmed",
+                              "cache_unavailable",
+                              "order_details_unavailable",
+                              "cancelled",
+                              "deadline_exceeded",
+                              "server_closed",
+                              "queue_full",
+                              "browser_unavailable"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "enum": [
+                              "internal_error",
+                              "invalid_result"
+                            ],
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "issues": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "path",
+                            "code"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "message": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "retryable": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                      "retryable"
+                    ],
+                    "type": "object"
+                  },
+                  "mutation": {
+                    "oneOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "outcome": {
+                            "const": "not_applied",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "outcome"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "outcome": {
+                            "const": "unknown",
+                            "type": "string"
+                          },
+                          "recovery": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "action": {
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -5406,7 +5813,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -5939,7 +6349,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -6916,7 +7329,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -8242,7 +8658,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -8638,7 +9057,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -9742,7 +10164,329 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
+                                "type": "string"
+                              },
+                              "automaticReplay": {
+                                "const": false,
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "action",
+                              "automaticReplay"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "outcome",
+                          "recovery"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "signIn": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "action": {
+                        "enum": [
+                          "configure_credentials",
+                          "check_credentials_or_sign_in",
+                          "confirm_not_a_robot"
+                        ],
+                        "type": "string"
+                      },
+                      "command": {
+                        "const": "continentept-mcp login --show-browser",
+                        "type": "string"
+                      },
+                      "credentials": {
+                        "enum": [
+                          "configured",
+                          "missing",
+                          "unknown"
+                        ],
+                        "type": "string"
+                      },
+                      "guide": {
+                        "format": "uri",
+                        "type": "string"
+                      },
+                      "publicTools": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "settings": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "claudeDesktopExtension": {
+                            "items": false,
+                            "maxItems": 2,
+                            "minItems": 2,
+                            "prefixItems": [
+                              {
+                                "const": "email",
+                                "type": "string"
+                              },
+                              {
+                                "const": "password",
+                                "type": "string"
+                              }
+                            ],
+                            "type": "array"
+                          },
+                          "environment": {
+                            "items": false,
+                            "maxItems": 2,
+                            "minItems": 2,
+                            "prefixItems": [
+                              {
+                                "const": "CONTINENTE_EMAIL",
+                                "type": "string"
+                              },
+                              {
+                                "const": "CONTINENTE_PASSWORD",
+                                "type": "string"
+                              }
+                            ],
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "environment",
+                          "claudeDesktopExtension"
+                        ],
+                        "type": "object"
+                      },
+                      "signInWindow": {
+                        "anyOf": [
+                          {
+                            "enum": [
+                              "opened",
+                              "already_open",
+                              "not_available"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "credentials",
+                      "action",
+                      "signInWindow",
+                      "settings",
+                      "command",
+                      "guide",
+                      "publicTools"
+                    ],
+                    "type": "object"
+                  },
+                  "status": {
+                    "const": "error",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "error"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "couponIds": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          }
+        },
+        "required": [
+          "couponIds"
+        ],
+        "type": "object"
+      },
+      "name": "set_cart_coupons",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "data": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "observedAt": {
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "type": "string"
+                      },
+                      "outcome": {
+                        "const": "confirmed",
+                        "type": "string"
+                      },
+                      "selectedCouponIds": {
+                        "items": {
+                          "maxLength": 200,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "observedAt",
+                      "outcome",
+                      "selectedCouponIds"
+                    ],
+                    "type": "object"
+                  },
+                  "status": {
+                    "enum": [
+                      "success",
+                      "empty",
+                      "partial"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "data"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "error": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "anyOf": [
+                          {
+                            "enum": [
+                              "invalid_data",
+                              "invalid_input",
+                              "not_authenticated",
+                              "upstream_unavailable",
+                              "not_found",
+                              "sale_rules_unknown",
+                              "quantity_below_minimum",
+                              "cart_change_rejected",
+                              "cart_change_unconfirmed",
+                              "cache_unavailable",
+                              "order_details_unavailable",
+                              "cancelled",
+                              "deadline_exceeded",
+                              "server_closed",
+                              "queue_full",
+                              "browser_unavailable"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "enum": [
+                              "internal_error",
+                              "invalid_result"
+                            ],
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "issues": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "path",
+                            "code"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "message": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "retryable": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                      "retryable"
+                    ],
+                    "type": "object"
+                  },
+                  "mutation": {
+                    "oneOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "outcome": {
+                            "const": "not_applied",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "outcome"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "outcome": {
+                            "const": "unknown",
+                            "type": "string"
+                          },
+                          "recovery": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "action": {
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {
@@ -10143,7 +10887,10 @@
                             "additionalProperties": false,
                             "properties": {
                               "action": {
-                                "const": "get_cart",
+                                "enum": [
+                                  "get_cart",
+                                  "list_coupons"
+                                ],
                                 "type": "string"
                               },
                               "automaticReplay": {

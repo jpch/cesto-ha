@@ -74,38 +74,7 @@ describe('ContinenteLink', () => {
     }
   });
 
-  it('hands off an existing session once, READY last (the local copy stays until the add-on confirms)', () => {
-    const d = dirs();
-    const src = join(d.dataDir, 'continente');
-    mkdirSync(join(src, 'profile'), { recursive: true });
-    writeFileSync(join(src, 'credentials.env'), 'x', { mode: 0o600 });
-    writeFileSync(join(src, 'profile', 'Cookies'), 'c');
-    const link = new ContinenteLink(d);
-    expect(link.handOffSession()).toBe('no_addon');
-    endpoint(d.shareDir, { hostname: 'localhost', port: 8100 });
-    expect(link.handOffSession()).toBe('handed_off');
-    const imp = join(d.shareDir, 'import');
-    expect(readdirSync(imp).sort()).toEqual(['READY', 'credentials.env', 'profile']);
-    expect(statSync(imp).mode & 0o777).toBe(0o700);
-    expect(existsSync(join(src, 'credentials.env'))).toBe(true);
-    expect(link.handOffSession()).toBe('done_before');
-  });
-
-  it('hands off once more when the marker is from 2.0.0', () => {
-    const d = dirs();
-    const src = join(d.dataDir, 'continente');
-    mkdirSync(src, { recursive: true });
-    writeFileSync(join(src, 'credentials.env'), 'x', { mode: 0o600 });
-    mkdirSync(join(d.dataDir, 'continente-mcp'), { recursive: true });
-    writeFileSync(join(d.dataDir, 'continente-mcp', 'handed-off'), '');
-    endpoint(d.shareDir, { hostname: 'localhost', port: 8100 });
-    const link = new ContinenteLink(d);
-    expect(link.handOffSession()).toBe('handed_off');
-    rmSync(join(d.shareDir, 'import'), { recursive: true });
-    expect(link.handOffSession()).toBe('done_before');
-  });
-
-  describe('2.0.2: deleting the old 1.x Continente data', () => {
+  describe('the old 1.x Continente data', () => {
     const legacy = (dataDir: string) => {
       const src = join(dataDir, 'continente');
       mkdirSync(join(src, 'profile'), { recursive: true });
@@ -113,22 +82,28 @@ describe('ContinenteLink', () => {
       writeFileSync(join(src, 'profile', 'Cookies'), 'c');
       return src;
     };
-    const healthy = (body: object) => (async () => new Response(JSON.stringify({ version: '1.0.2', addon_slug: '75545ee1_continente_mcp', ...body }))) as never;
+    const healthy = (body: object) => (async () => new Response(JSON.stringify({ version: '1.0.4', addon_slug: '75545ee1_continente_mcp', ...body }))) as never;
 
-    it('keeps it until the hand-off is consumed and the add-on confirms its own account', async () => {
+    it('2.0.4: is never handed off through /share', async () => {
+      const d = dirs();
+      legacy(d.dataDir);
+      endpoint(d.shareDir, { hostname: 'localhost', port: 8100 });
+      const link = new ContinenteLink({ ...d, fetch: healthy({ credentials_configured: false, session_valid: false }) });
+      await link.refresh();
+      link.purgeLegacyData();
+      expect('handOffSession' in link).toBe(false);
+      expect(existsSync(join(d.shareDir, 'import'))).toBe(false);
+      expect(existsSync(join(d.shareDir, 'import.tmp'))).toBe(false);
+    });
+
+    it('is kept until the Continente MCP add-on confirms its own account, then deleted', async () => {
       const d = dirs();
       const src = legacy(d.dataDir);
       let health: object = { credentials_configured: false, session_valid: false };
       const link = new ContinenteLink({ ...d, fetch: (async () => healthy(health)()) as never });
-      // No Continente MCP add-on yet: never deleted, the hand-off still needs it.
-      expect(link.purgeLegacyData()).toBe('handoff_pending');
+      expect(link.purgeLegacyData()).toBe('no_confirmation');
       endpoint(d.shareDir, { hostname: 'localhost', port: 8100 });
-      expect(link.handOffSession()).toBe('handed_off');
       await link.refresh();
-      // Handed off but not imported yet (import/ still in /share).
-      expect(link.purgeLegacyData()).toBe('handoff_pending');
-      rmSync(join(d.shareDir, 'import'), { recursive: true });
-      // Consumed, but the add-on has no account or valid session of its own yet.
       expect(link.purgeLegacyData()).toBe('no_confirmation');
       expect(existsSync(join(src, 'credentials.env'))).toBe(true);
       health = { credentials_configured: true, session_valid: false };
@@ -136,14 +111,11 @@ describe('ContinenteLink', () => {
       expect(link.purgeLegacyData()).toBe('purged');
       expect(existsSync(src)).toBe(false);
       expect(link.purgeLegacyData()).toBe('none');
-      expect(link.handOffSession()).toBe('done_before');
     });
 
     it('a valid session on the add-on is enough; an unreachable add-on is not', async () => {
       const d = dirs();
       const src = legacy(d.dataDir);
-      mkdirSync(join(d.dataDir, 'continente-mcp'), { recursive: true });
-      writeFileSync(join(d.dataDir, 'continente-mcp', 'handed-off'), 'v2');
       endpoint(d.shareDir, { hostname: 'localhost', port: 8100 });
       const down = new ContinenteLink({ ...d, fetch: (async () => { throw new TypeError('fetch failed'); }) as never });
       await down.refresh();
@@ -154,29 +126,6 @@ describe('ContinenteLink', () => {
       expect(existsSync(src)).toBe(false);
       // Cesto's own token is never touched.
       expect(existsSync(join(d.dataDir, 'continente-mcp', 'token'))).toBe(true);
-    });
-
-    it('never deletes it while a 2.0.0 marker means the hand-off still has to run again', async () => {
-      const d = dirs();
-      const src = legacy(d.dataDir);
-      mkdirSync(join(d.dataDir, 'continente-mcp'), { recursive: true });
-      writeFileSync(join(d.dataDir, 'continente-mcp', 'handed-off'), '');
-      endpoint(d.shareDir, { hostname: 'localhost', port: 8100 });
-      const link = new ContinenteLink({ ...d, fetch: healthy({ credentials_configured: true, session_valid: true }) });
-      await link.refresh();
-      expect(link.purgeLegacyData()).toBe('handoff_pending');
-      expect(existsSync(join(src, 'credentials.env'))).toBe(true);
-    });
-
-    it('without /share (local runs) it never deletes anything', async () => {
-      const d = dirs();
-      const src = legacy(d.dataDir);
-      mkdirSync(join(d.dataDir, 'continente-mcp'), { recursive: true });
-      writeFileSync(join(d.dataDir, 'continente-mcp', 'handed-off'), 'v2');
-      const link = new ContinenteLink({ dataDir: d.dataDir, shareDir: '', url: 'http://localhost:8100/mcp', fetch: healthy({ credentials_configured: true }) });
-      await link.refresh();
-      expect(link.purgeLegacyData()).toBe('handoff_pending');
-      expect(existsSync(src)).toBe(true);
     });
   });
 

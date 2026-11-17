@@ -44,8 +44,8 @@ export class CachedCatalog implements CatalogReader {
   }
   private readonly onHit?: (tool: string) => void;
 
-  async searchProducts(args: { query: string; limit?: number; favoritesFirst?: boolean }): Promise<ToolResult> {
-    const key = JSON.stringify([args.query.trim().toLowerCase(), args.limit ?? null, args.favoritesFirst ?? null]);
+  async searchProducts(args: { query: string; limit?: number }): Promise<ToolResult> {
+    const key = JSON.stringify([args.query.trim().toLowerCase(), args.limit ?? null]);
     const hit = this.searches.get(key);
     if (hit) { this.onHit?.('search_products'); return clone(hit); }
     const res = await this.inner.searchProducts(args);

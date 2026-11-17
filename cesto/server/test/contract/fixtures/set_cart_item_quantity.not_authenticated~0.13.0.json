@@ -1,0 +1,36 @@
+{
+  "result": {
+    "status": "error",
+    "error": {
+      "code": "not_authenticated",
+      "message": "The Continente session expired; sign in again.",
+      "retryable": false
+    },
+    "signIn": {
+      "credentials": "configured",
+      "action": "check_credentials_or_sign_in",
+      "signInWindow": null,
+      "settings": {
+        "environment": [
+          "CONTINENTE_EMAIL",
+          "CONTINENTE_PASSWORD"
+        ],
+        "claudeDesktopExtension": [
+          "email",
+          "password"
+        ]
+      },
+      "command": "continentept-mcp login --show-browser",
+      "guide": "https://github.com/example/continentept-mcp#sign-in",
+      "publicTools": [
+        "search_products",
+        "get_product",
+        "get_product_labels",
+        "choose_products"
+      ]
+    },
+    "mutation": {
+      "outcome": "not_applied"
+    }
+  }
+}

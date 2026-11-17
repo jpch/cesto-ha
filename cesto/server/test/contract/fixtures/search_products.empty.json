@@ -9,6 +9,7 @@
       "scanned": 0,
       "returned": 0,
       "favoritesLoaded": 0,
+      "favoritesPromoted": 0,
       "completeness": "complete",
       "failures": [],
       "nextCursor": null

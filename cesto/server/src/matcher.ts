@@ -76,11 +76,12 @@ export function cartQuantity(item: Pick<MatchItem, 'quantity' | 'unit'>, product
   return { quantity: 1, basis: 'default' };
 }
 
-/** Promotion hint: buying a bit more unlocks a multi-buy or an nth-unit discount. */
+/** Promotion hint: buying a bit more unlocks a multi-buy (`Leve 3 por 5€`, `Leve 6 Pague 5`) or an nth-unit discount. */
 export function promoSuggestion(product: Product, quantity: number): PromoSuggestion | null {
   for (const p of product.promotions ?? []) {
-    if (p.kind === 'multi_buy' && p.bundle && p.bundle.quantity > quantity && p.bundle.quantity - quantity <= 2)
-      return { kind: 'multi_buy', label: p.label, suggested_quantity: p.bundle.quantity };
+    const take = p.kind === 'multi_buy' ? (p.bundle?.quantity ?? p.takePay?.take ?? null) : null;
+    if (take !== null && Number.isInteger(take) && take > quantity && take - quantity <= 2)
+      return { kind: 'multi_buy', label: p.label, suggested_quantity: take };
     if (p.kind === 'nth_unit_discount' && p.nthUnit && p.nthUnit > quantity && p.nthUnit - quantity <= 2)
       return { kind: 'nth_unit_discount', label: p.label, suggested_quantity: p.nthUnit };
   }
@@ -88,6 +89,23 @@ export function promoSuggestion(product: Product, quantity: number): PromoSugges
 }
 
 const overlap = (a: string[], b: string[]) => a.filter(w => b.includes(w)).length;
+
+/** Most cached favourites added to one item's candidates. */
+export const MAX_CACHED_FAVORITES = 3;
+
+/**
+ * The search page plus cached favourites it did not show whose name has every word of the item, marked
+ * `favorite` and placed after the page (the score still ranks them first, as favourites).
+ */
+export function withCachedFavorites(found: Product[], favorites: Product[], words: string[]): Product[] {
+  if (!words.length) return found;
+  const seen = new Set(found.map(p => p.productId));
+  const extra = favorites
+    .filter(f => f?.productId && typeof f.name === 'string' && !seen.has(f.productId) && words.every(w => tokens(f.name).includes(w)))
+    .slice(0, MAX_CACHED_FAVORITES)
+    .map(f => ({ ...f, favorite: true }));
+  return extra.length ? [...found, ...extra] : found;
+}
 
 /**
  * Item -> ranked candidates. Order: learned household preference > frequently bought > favourite > search.
@@ -107,11 +125,14 @@ export class Matcher {
     // 0. Product linked to the item by the user (decision 58): used as is, no re-matching.
     if (item.product) return this.linked(line, item, item.product);
 
-    const search = await this.catalog.searchProducts({ query: item.name, limit: 10, favoritesFirst: true });
+    // One plain results page (no favoritesFirst, which reads up to five pages since continentept-mcp 0.14.0).
+    const search = await this.catalog.searchProducts({ query: item.name, limit: 10 });
     if (search.status === 'error') { line.error = search.error?.code ?? 'search_failed'; }
-    const found = productsOf(search);
     const frequentIds = new Map(habits.frequent.filter(f => f.productId).map((f, i) => [f.productId!, i]));
     const favoriteIds = new Set(habits.favorites.map(f => f.productId));
+    // Favourites the page did not show come from Cesto's cached list_favorites (no extra upstream call), only when
+    // their name has every word of the item, as favoritesFirst would have found them further down the results.
+    const found = withCachedFavorites(search.status === 'error' ? [] : productsOf(search), habits.favorites, words);
 
     const reasonOf = (p: Product): Reason => (frequentIds.has(p.productId) ? 'frequent' : favoriteIds.has(p.productId) || p.favorite ? 'favorite' : 'search');
     const score = (p: Product, index: number) => {
@@ -177,7 +198,7 @@ export class Matcher {
     if (product.availability === 'unavailable') {
       line.out_of_stock = true;
       line.unavailable = toOption(product, 'linked');
-      const search = await this.catalog.searchProducts({ query: item.name, limit: 10, favoritesFirst: true });
+      const search = await this.catalog.searchProducts({ query: item.name, limit: 10 });
       const words = tokens(item.name);
       line.options = productsOf(search)
         .filter(p => p.productId && p.productId !== link.product_id && p.availability !== 'unavailable' && overlap(words, tokens(p.name)) > 0)

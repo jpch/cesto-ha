@@ -28,12 +28,13 @@ describe('upstream tool snapshot', () => {
       for (const name of names.filter(n => !ALLOWED_TOOLS.includes(n))) expect(isForbidden(name), `${name} in ${snap.version}`).toBe(true);
     }
   });
-  it('0.13.0 adds only the coupon tools, which match FORBIDDEN_TOOL and are never allowlisted', () => {
-    const d = diff(SNAPSHOTS.find(s => s.version === '0.12.1')!.tools, snapshot.tools);
-    expect(snapshot.version).toBe('0.13.0');
-    expect(d.added).toEqual(['list_coupons', 'set_cart_coupons']);
+  it('0.15.0 adds and removes no tool compared with 0.13.0; the coupon tools stay forbidden', () => {
+    expect(snapshot.version).toBe('0.15.0');
+    expect(SNAPSHOTS.map(s => s.version)).toEqual(['0.15.0', '0.13.0']);
+    const d = diff(SNAPSHOTS.find(s => s.version === '0.13.0')!.tools, snapshot.tools);
+    expect(d.added).toEqual([]);
     expect(d.removed).toEqual([]);
-    for (const name of d.added) { expect(FORBIDDEN_TOOL.test(name), name).toBe(true); expect(ALLOWED_TOOLS).not.toContain(name); }
+    for (const name of ['list_coupons', 'set_cart_coupons']) { expect(FORBIDDEN_TOOL.test(name), name).toBe(true); expect(ALLOWED_TOOLS).not.toContain(name); }
   });
   it('has an input and an output schema for every tool', () => {
     for (const t of SNAPSHOTS.flatMap(x => x.tools)) {
@@ -73,9 +74,27 @@ describe('recorded fixtures', () => {
     const ok = validate(JSON.parse(raw(file)));
     expect(ok, JSON.stringify(validate.errors?.slice(0, 3))).toBe(true);
   });
-  it('the 0.13.0-only fixture really is new in 0.13.0 (0.12.1 rejects it)', () => {
-    const validate = validatorIn(SNAPSHOTS.find(s => s.version === '0.12.1')!, 'set_cart_item_quantity', 'outputSchema');
-    expect(validate(JSON.parse(raw('set_cart_item_quantity.unknown_coupons')))).toBe(false);
+  it('the 0.15.0-only fixtures really are new (0.13.0 rejects them); each ~0.13.0 fixture is the old shape (0.15.0 rejects it)', () => {
+    const v013 = SNAPSHOTS.find(s => s.version === '0.13.0')!;
+    for (const f of ['search_products.dose', 'get_product.take_pay']) expect(validatorIn(v013, f.split('.')[0]!, 'outputSchema')(JSON.parse(raw(f))), f).toBe(false);
+    const old = FIXTURES.filter(f => f.endsWith('~0.13.0'));
+    expect(old.length).toBeGreaterThanOrEqual(10);
+    for (const f of old) {
+      expect(FIXTURES, f).toContain(f.replace(/~0\.13\.0$/, ''));
+      expect(validatorIn(snapshot, f.split('.')[0]!, 'outputSchema')(JSON.parse(raw(f))), f).toBe(false);
+    }
+  });
+  it('the adapters read the 0.13.0 and the 0.15.0 shape of each case alike', () => {
+    for (const f of FIXTURES.filter(x => x.endsWith('~0.13.0'))) {
+      const [a, b] = [fx(f), fx(f.replace(/~0\.13\.0$/, ''))];
+      const strip = (ps: unknown[]) => JSON.parse(JSON.stringify(ps, (k, v) => (k === 'takePay' ? undefined : v)));
+      expect(strip(up.productsOf(a)), f).toEqual(strip(up.productsOf(b)));
+      expect(up.isNotAuthenticated(a), f).toBe(up.isNotAuthenticated(b));
+      expect(up.productOf(a)?.productId, f).toBe(up.productOf(b)?.productId);
+    }
+  });
+  it("the Continente MCP add-on's own sign-in error (1.0.4) reads as signed out", () => {
+    expect(up.isNotAuthenticated(fx('get_cart.not_authenticated_ha'))).toBe(true);
   });
   it('are anonymised: no e-mail, phone, IP, personal host, token or real order data', () => {
     for (const file of FIXTURES) {

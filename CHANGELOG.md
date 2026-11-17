@@ -5,6 +5,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.4] - 2026-11-17
+### Changed
+- Reads continentept-mcp 0.15.0 as well as 0.13.0, so it works with the Continente MCP add-on 1.0.3 and 1.0.4. The
+  tools Cesto uses are unchanged in 0.15.0 except for their output: prices per `dose` (detergents), `takePay` on
+  promotions, `favoritesPromoted` on searches and the new sign-in command text.
+- Searches no longer ask for `favoritesFirst`, which reads up to five results pages per search since
+  continentept-mcp 0.14.0. Favourites are promoted from Cesto's own cached favourites instead: one results page per
+  item, as before, with the same matches.
+- `Leve X Pague Y` offers (`takePay`) suggest buying the offer quantity, like `Leve 3 por …`.
+### Added
+- Unit prices per dose. Apps that show them send `X-Cesto-Units: kg,l,dose`. For older apps, a unit price per dose is
+  left out (no more "€/kg" on a detergent) and so are cheaper products compared per dose.
+### Removed
+- The one-time hand-off of a Cesto 1.x Continente session to the Continente MCP add-on: nothing is written to
+  `/share/continente-mcp/import/` any more. A 1.x copy of the account is still deleted once the Continente MCP
+  add-on has its own account or session.
+
 ## [2.0.3] - 2026-11-11
 ### Changed
 - Reads continentept-mcp 0.13.0 as well as 0.12.1, so it keeps working when the Continente MCP add-on moves to

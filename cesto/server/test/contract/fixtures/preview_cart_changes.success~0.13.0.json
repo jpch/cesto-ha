@@ -1,0 +1,216 @@
+{
+  "result": {
+    "status": "partial",
+    "data": {
+      "lines": [
+        {
+          "productId": "2000001",
+          "cartItemId": "line-a1",
+          "name": "Leite UHT Meio-Gordo",
+          "requested": {
+            "value": 8,
+            "unit": "un"
+          },
+          "storefrontQuantity": {
+            "value": 8,
+            "unit": "un"
+          },
+          "current": {
+            "status": "known",
+            "quantity": {
+              "value": 6,
+              "unit": "un"
+            }
+          },
+          "change": "increase",
+          "availability": "available",
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 103
+            },
+            "per": "item"
+          },
+          "packageText": "emb. 1 lt",
+          "package": {
+            "count": 1,
+            "each": null,
+            "net": {
+              "value": 1,
+              "unit": "l"
+            },
+            "drained": null,
+            "approximate": false
+          },
+          "saleRules": {
+            "saleUnit": "un",
+            "storefrontUnit": "un",
+            "storefrontUnitsPerSaleUnit": 1,
+            "minimum": {
+              "value": 1,
+              "unit": "un"
+            },
+            "maximum": {
+              "value": 99,
+              "unit": "un"
+            },
+            "step": {
+              "value": 1,
+              "unit": "un"
+            }
+          },
+          "promotions": [
+            {
+              "kind": "immediate_discount",
+              "label": "Desconto imediato 20%",
+              "previousPrice": {
+                "amount": {
+                  "currency": "EUR",
+                  "minorUnits": 129
+                },
+                "per": "item"
+              },
+              "percentOff": 20,
+              "amountOff": {
+                "currency": "EUR",
+                "minorUnits": 26
+              },
+              "bundle": null,
+              "nthUnit": null,
+              "validFrom": "2026-10-28",
+              "validTo": "2026-11-03"
+            }
+          ],
+          "estimatedCost": {
+            "currency": "EUR",
+            "minorUnits": 824
+          },
+          "estimated": false,
+          "error": null
+        },
+        {
+          "productId": "2000003",
+          "cartItemId": null,
+          "name": "Atum em Óleo Vegetal",
+          "requested": {
+            "value": 1,
+            "unit": "un"
+          },
+          "storefrontQuantity": {
+            "value": 1,
+            "unit": "un"
+          },
+          "current": {
+            "status": "known",
+            "quantity": {
+              "value": 0,
+              "unit": "un"
+            }
+          },
+          "change": "add",
+          "availability": "unavailable",
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 249
+            },
+            "per": "item"
+          },
+          "packageText": "emb. 3 x 80 gr",
+          "package": {
+            "count": 3,
+            "each": {
+              "value": 80,
+              "unit": "g"
+            },
+            "net": {
+              "value": 240,
+              "unit": "g"
+            },
+            "drained": {
+              "value": 156,
+              "unit": "g"
+            },
+            "approximate": false
+          },
+          "saleRules": {
+            "saleUnit": "un",
+            "storefrontUnit": "un",
+            "storefrontUnitsPerSaleUnit": 1,
+            "minimum": {
+              "value": 1,
+              "unit": "un"
+            },
+            "maximum": {
+              "value": 99,
+              "unit": "un"
+            },
+            "step": {
+              "value": 1,
+              "unit": "un"
+            }
+          },
+          "promotions": [],
+          "estimatedCost": null,
+          "estimated": true,
+          "error": null
+        },
+        {
+          "productId": "2000005",
+          "cartItemId": null,
+          "name": null,
+          "requested": {
+            "value": 2,
+            "unit": "un"
+          },
+          "storefrontQuantity": null,
+          "current": {
+            "status": "unknown",
+            "value": null,
+            "rawText": null,
+            "reason": "missing"
+          },
+          "change": null,
+          "availability": null,
+          "price": null,
+          "packageText": null,
+          "package": null,
+          "saleRules": null,
+          "promotions": [],
+          "estimatedCost": null,
+          "estimated": true,
+          "error": {
+            "code": "sale_rules_unknown",
+            "message": "Sale rules could not be read.",
+            "retryable": true
+          }
+        }
+      ],
+      "estimatedCost": {
+        "currency": "EUR",
+        "minorUnits": 824
+      },
+      "estimated": true,
+      "problems": 2,
+      "productsAfter": {
+        "currency": "EUR",
+        "minorUnits": 991
+      },
+      "checkout": {
+        "minimumOrder": {
+          "currency": "EUR",
+          "minorUnits": 5000
+        },
+        "meetsMinimum": false,
+        "entregaZero": false,
+        "freeDeliveryFrom": {
+          "currency": "EUR",
+          "minorUnits": 10000
+        },
+        "deliveryFee": "free"
+      },
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "catalogView": "signed_in"
+    }
+  }
+}

@@ -49,6 +49,7 @@
                 "minorUnits": 26
               },
               "bundle": null,
+              "takePay": null,
               "nthUnit": null,
               "validFrom": "2026-10-28",
               "validTo": "2026-11-03"

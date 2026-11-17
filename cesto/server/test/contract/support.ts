@@ -33,9 +33,22 @@ export const fx = (name: string) => (JSON.parse(raw(name)) as { result: ToolResu
 export const FIXTURE_SINCE: Record<string, string> = {
   // 0.13.0: an unconfirmed cart change may point at list_coupons for recovery (Cesto never calls it).
   'set_cart_item_quantity.unknown_coupons': '0.13.0',
+  // 0.14.0 (first kept: 0.15.0): prices per dose (detergents) and `Leve X Pague Y` as takePay.
+  'search_products.dose': '0.15.0',
+  'get_product.take_pay': '0.15.0',
 };
+/**
+ * `<tool>.<case>~<version>`: the same case as `<tool>.<case>`, in the shape of that older version (and the ones
+ * before it), which a newer version no longer produces (e.g. promotions without `takePay` before 0.14.0).
+ */
+export const untilOf = (name: string) => /~(\d+\.\d+\.\d+)$/.exec(name)?.[1] ?? null;
 const num = (v: string) => v.split('.').map(Number).reduce((a, n) => a * 1000 + n, 0);
-export const fixturesFor = (version: string) => FIXTURES.filter(f => !FIXTURE_SINCE[f] || num(version) >= num(FIXTURE_SINCE[f]));
+/** The newest older-shape sibling `<name>~<version>`: `<name>` itself then applies only after that version. */
+const olderShape = (name: string) => FIXTURES.filter(f => f.startsWith(`${name}~`)).map(untilOf).filter(Boolean)
+  .sort((a, b) => num(b!) - num(a!))[0] ?? null;
+export const fixturesFor = (version: string) => FIXTURES.filter(f => (!FIXTURE_SINCE[f] || num(version) >= num(FIXTURE_SINCE[f]))
+  && (!untilOf(f) || num(version) <= num(untilOf(f)!))
+  && (!olderShape(f) || num(version) > num(olderShape(f)!)));
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 addFormats(ajv);
@@ -58,7 +71,7 @@ export async function cestoCalls() {
   const replay = new Replay({ get_session_status: 'get_session_status.authenticated' });
   const mcp = new ContinenteMcp(new TestModeGuard(replay, () => false));
   const cart = new CartWriter(mcp, () => false);
-  await mcp.searchProducts({ query: 'leite', limit: 5, favoritesFirst: true });
+  await mcp.searchProducts({ query: 'leite', limit: 5 });
   await mcp.getProduct('2000001');
   await mcp.getProductLabels(['2000001']);
   await mcp.chooseProducts([{ question: 'leite', productIds: ['2000001', '2000002'], suggested: '2000001' }]);

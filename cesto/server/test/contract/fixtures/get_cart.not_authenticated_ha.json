@@ -1,0 +1,10 @@
+{
+  "result": {
+    "status": "error",
+    "error": {
+      "code": "not_authenticated",
+      "message": "Sign-in needed: ask the user to open the Continente MCP add-on page in Home Assistant and sign in there (Continente may ask them to tick \"Não sou um robô\"). Then try again. Searching and product details work without signing in.",
+      "retryable": false
+    }
+  }
+}

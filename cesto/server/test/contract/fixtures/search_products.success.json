@@ -48,6 +48,7 @@
                 "minorUnits": 26
               },
               "bundle": null,
+              "takePay": null,
               "nthUnit": null,
               "validFrom": "2026-10-28",
               "validTo": "2026-11-03"
@@ -150,6 +151,7 @@
                   "minorUnits": 498
                 }
               },
+              "takePay": null,
               "nthUnit": null,
               "validFrom": null,
               "validTo": null
@@ -199,6 +201,7 @@
       "scanned": 3,
       "returned": 3,
       "favoritesLoaded": 1,
+      "favoritesPromoted": 0,
       "completeness": "complete",
       "failures": [],
       "nextCursor": null

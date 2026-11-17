@@ -1,0 +1,17 @@
+{
+  "result": {
+    "status": "empty",
+    "data": {
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "catalogView": "signed_out",
+      "products": [],
+      "unknownToFilter": 0,
+      "scanned": 0,
+      "returned": 0,
+      "favoritesLoaded": 0,
+      "completeness": "complete",
+      "failures": [],
+      "nextCursor": null
+    }
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "catalogView": "signed_in",
+      "products": [
+        {
+          "productId": "2000010",
+          "productSlug": "detergente-roupa-liquido",
+          "name": "Detergente Roupa Líquido",
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 999
+            },
+            "per": "item"
+          },
+          "url": "https://www.continente.pt/produto/detergente-roupa-liquido-2000010.html",
+          "secondaryPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 25
+            },
+            "per": "dose"
+          },
+          "recommendedPrice": null,
+          "promotions": [
+            {
+              "kind": "multi_buy",
+              "label": "Leve 2 Pague 1",
+              "previousPrice": null,
+              "percentOff": null,
+              "amountOff": null,
+              "bundle": null,
+              "takePay": {
+                "take": 2,
+                "pay": 1
+              },
+              "nthUnit": null,
+              "validFrom": "2026-11-12",
+              "validTo": "2026-11-25"
+            }
+          ],
+          "packageText": "emb. 40 doses",
+          "package": {
+            "count": 1,
+            "each": null,
+            "net": null,
+            "drained": null,
+            "approximate": false
+          },
+          "minimumText": null,
+          "availability": "available",
+          "brand": "Marca Exemplo",
+          "category": "Limpeza",
+          "drainedPrice": null,
+          "unitPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 25
+            },
+            "per": "dose",
+            "basis": "website"
+          },
+          "imageUrl": "https://www.continente.pt/dw/image/v2/BDVS_PRD/on/demandware.static/-/Sites-col-master-catalog/default/images/2000010.jpg",
+          "favorite": false
+        },
+        {
+          "productId": "2000011",
+          "productSlug": "detergente-roupa-capsulas",
+          "name": "Detergente Roupa Cápsulas",
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 1299
+            },
+            "per": "item"
+          },
+          "url": "https://www.continente.pt/produto/detergente-roupa-capsulas-2000011.html",
+          "secondaryPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 22
+            },
+            "per": "dose"
+          },
+          "recommendedPrice": null,
+          "promotions": [],
+          "packageText": "emb. 60 doses",
+          "package": {
+            "count": 1,
+            "each": null,
+            "net": null,
+            "drained": null,
+            "approximate": false
+          },
+          "minimumText": null,
+          "availability": "available",
+          "brand": "Marca Exemplo",
+          "category": "Limpeza",
+          "drainedPrice": null,
+          "unitPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 22
+            },
+            "per": "dose",
+            "basis": "website"
+          },
+          "imageUrl": "https://www.continente.pt/dw/image/v2/BDVS_PRD/on/demandware.static/-/Sites-col-master-catalog/default/images/2000011.jpg",
+          "favorite": false
+        }
+      ],
+      "unknownToFilter": 0,
+      "scanned": 2,
+      "returned": 2,
+      "favoritesLoaded": 0,
+      "favoritesPromoted": 0,
+      "completeness": "complete",
+      "failures": [],
+      "nextCursor": null
+    }
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "productId": "2000010",
+      "productSlug": "detergente-roupa-liquido",
+      "name": "Detergente Roupa Líquido",
+      "url": "https://www.continente.pt/produto/detergente-roupa-liquido-2000010.html",
+      "price": {
+        "amount": {
+          "currency": "EUR",
+          "minorUnits": 999
+        },
+        "per": "item"
+      },
+      "secondaryPrice": {
+        "amount": {
+          "currency": "EUR",
+          "minorUnits": 25
+        },
+        "per": "dose"
+      },
+      "recommendedPrice": null,
+      "promotions": [
+        {
+          "kind": "multi_buy",
+          "label": "Leve 2 Pague 1",
+          "previousPrice": null,
+          "percentOff": null,
+          "amountOff": null,
+          "bundle": null,
+          "takePay": {
+            "take": 2,
+            "pay": 1
+          },
+          "nthUnit": null,
+          "validFrom": "2026-11-12",
+          "validTo": "2026-11-25"
+        }
+      ],
+      "packageText": "emb. 40 doses",
+      "package": {
+        "count": 1,
+        "each": null,
+        "net": null,
+        "drained": null,
+        "approximate": false
+      },
+      "minimumText": null,
+      "drainedPrice": null,
+      "unitPrice": {
+        "amount": {
+          "currency": "EUR",
+          "minorUnits": 25
+        },
+        "per": "dose",
+        "basis": "website"
+      },
+      "imageUrl": "https://www.continente.pt/dw/image/v2/BDVS_PRD/on/demandware.static/-/Sites-col-master-catalog/default/images/2000010.jpg",
+      "availability": "available",
+      "saleRules": {
+        "status": "available",
+        "rules": {
+          "saleUnit": "un",
+          "storefrontUnit": "un",
+          "storefrontUnitsPerSaleUnit": 1,
+          "minimum": {
+            "value": 1,
+            "unit": "un"
+          },
+          "maximum": {
+            "value": 99,
+            "unit": "un"
+          },
+          "step": {
+            "value": 1,
+            "unit": "un"
+          }
+        }
+      },
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "catalogView": "signed_in"
+    }
+  }
+}

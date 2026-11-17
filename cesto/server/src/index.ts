@@ -47,7 +47,6 @@ let lastRemoteSession: boolean | null = null;
 // A persistent purge failure (e.g. a read-only file) was logged every 30 s; now once, hourly, and on recovery.
 const purgeLog = new RepeatedFailureLog(line => console.log(line), '[continente] removing the old Continente data');
 const pollLink = async () => {
-  try { link.handOffSession(); } catch (e) { console.log(`[continente] session hand-off failed: ${(e as Error).message}`); }
   const h = await link.refresh();
   try { link.purgeLegacyData(); purgeLog.ok(); } catch (e) { purgeLog.failed((e as Error).message); }
   const v = typeof h?.session_valid === 'boolean' ? h.session_valid : null;

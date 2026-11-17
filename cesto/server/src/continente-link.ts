@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -10,11 +10,10 @@ import { join } from 'node:path';
  * - Token: the `continente_mcp_token` option, else a token Cesto generates and keeps in /data (0600). Only its
  *   SHA-256 hash goes to `/share/continente-mcp/requests/cesto.json`; an HA admin approves it on the
  *   Continente MCP page, where the same fingerprint is shown. The token itself never leaves this add-on.
- * - One-time hand-off: an existing /data/continente (Cesto 1.x) is copied to `/share/continente-mcp/import/`
- *   (READY written last). The other add-on imports it only when it has no session yet, then deletes it.
- * - 2.0.2: the 1.x copy (`credentials.env` with the Continente password, and the browser profile) is deleted
- *   from /data once the hand-off is over and the Continente MCP add-on reports its own account or session, so
- *   no Continente password stays in Cesto's data or in new backups of it.
+ * - A Cesto 1.x copy of the Continente account (`/data/continente`: `credentials.env` with the password, and the
+ *   browser profile) is deleted once the Continente MCP add-on reports its own account or session, so no
+ *   Continente password stays in Cesto's data or in new backups of it. 2.0.4: it is never handed off any more
+ *   (sign in on the Continente MCP add-on page instead), so nothing secret is written to `/share`.
  */
 export interface LinkOptions {
   dataDir: string;
@@ -38,7 +37,7 @@ export interface ContinenteHealth {
   addon_slug?: string | null;
 }
 
-export type LegacyPurge = 'purged' | 'none' | 'handoff_pending' | 'no_confirmation';
+export type LegacyPurge = 'purged' | 'none' | 'no_confirmation';
 
 export type TokenState = 'option' | 'pending_approval' | 'approved' | 'rejected';
 
@@ -64,8 +63,6 @@ const HOST = /^([a-z0-9]{1,16}-continente-mcp|localhost)$/;
 export const REQUEST_NAME = 'Cesto';
 
 export const fingerprintOf = (hash: string) => `${hash.slice(0, 4)}-${hash.slice(4, 8)}`.toUpperCase();
-
-const HANDOFF_MARK = 'v2';
 
 export class ContinenteLink {
   private readonly tokenFile: string;
@@ -172,44 +169,13 @@ export class ContinenteLink {
   }
 
   /**
-   * One-time hand-off of a Cesto 1.x session and account. Runs only when the other add-on is installed
-   * (endpoint.json exists), there is something to hand off and it was not handed off before.
-   */
-  handOffSession(): 'handed_off' | 'nothing' | 'done_before' | 'no_addon' {
-    const src = join(this.o.dataDir, 'continente');
-    const marker = join(this.o.dataDir, 'continente-mcp', 'handed-off');
-    // Version 2 of the marker: hand-offs made by 2.0.0 were skipped by Continente MCP 1.0.1, so they run once more.
-    if (existsSync(marker) && readFileSync(marker, 'utf8').trim() === HANDOFF_MARK) return 'done_before';
-    const ep = this.shareFile('endpoint.json');
-    if (!ep || !existsSync(ep)) return 'no_addon';
-    if (!existsSync(src) || readdirSync(src).length === 0) { writeFileSync(marker, HANDOFF_MARK); return 'nothing'; }
-    const imp = this.shareFile('import')!, tmp = imp + '.tmp';
-    if (existsSync(imp)) return 'no_addon';
-    rmSync(tmp, { recursive: true, force: true });
-    cpSync(src, tmp, { recursive: true, filter: s => !lstatSync(s).isSymbolicLink() });
-    chmodSync(tmp, 0o700);
-    renameSync(tmp, imp);
-    writeFileSync(join(imp, 'READY'), '', { mode: 0o600 });
-    writeFileSync(marker, HANDOFF_MARK);
-    this.o.log?.('[continente] Continente session handed off to the Continente MCP add-on');
-    return 'handed_off';
-  }
-
-  /**
    * Deletes the Cesto 1.x Continente data (`/data/continente`: credentials.env and the browser profile) once
-   * it is no longer needed, and only then:
-   *  - the hand-off ran (current marker) and the Continente MCP add-on already consumed it (no `import/` left
-   *    in /share; it deletes it whether it imported or skipped it), and
-   *  - that add-on's last health check says it has its own account (`credentials_configured`) or a valid session.
-   * Otherwise nothing is touched and it tries again on the next poll.
+   * the Continente MCP add-on's last health check says it has its own account (`credentials_configured`) or a
+   * valid session. Otherwise nothing is touched and it tries again on the next poll.
    */
   purgeLegacyData(): LegacyPurge {
     const src = join(this.o.dataDir, 'continente');
     if (!existsSync(src)) return 'none';
-    const marker = join(this.o.dataDir, 'continente-mcp', 'handed-off');
-    const imp = this.shareFile('import');
-    const handedOff = existsSync(marker) && readFileSync(marker, 'utf8').trim() === HANDOFF_MARK;
-    if (!handedOff || !imp || existsSync(imp) || existsSync(imp + '.tmp')) return 'handoff_pending';
     const h = this.health;
     if (!h || !(h.credentials_configured === true || h.session_valid === true)) return 'no_confirmation';
     rmSync(src, { recursive: true, force: true });

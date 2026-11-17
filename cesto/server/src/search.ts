@@ -21,7 +21,8 @@ const toCandidate = (p: Product): SearchCandidate => ({
  * Tries the barcode first (when given) and falls back to the composed name. Never touches the cart.
  */
 export class ProductSearch {
-  constructor(private readonly catalog: CatalogReader) {}
+  /** `favoriteIds`: product ids of Cesto's cached list_favorites (habits), shown first. */
+  constructor(private readonly catalog: CatalogReader, private readonly favoriteIds: () => Set<string> = () => new Set()) {}
 
   async search(input: { query?: unknown; barcode?: unknown }): Promise<SearchResult> {
     const query = typeof input.query === 'string' ? input.query.trim().replace(/\s+/g, ' ').slice(0, 120) : '';
@@ -29,12 +30,16 @@ export class ProductSearch {
     if (input.barcode != null && input.barcode !== '' && !barcode) throw new SearchError(400, 'error.invalid_barcode');
     if (!query && !barcode) throw new SearchError(400, 'error.invalid_query');
     const run = async (q: string) => {
-      const res = await this.catalog.searchProducts({ query: q, limit: MAX, favoritesFirst: true });
+      // One plain results page; favourites (flagged by the shop or in Cesto's cache) first, otherwise the shop's order.
+      const res = await this.catalog.searchProducts({ query: q, limit: MAX });
       if (res.status === 'error') {
         if (isNotAuthenticated(res)) throw new SearchError(409, 'error.session_expired');
         throw new SearchError(502, 'error.search_failed');
       }
-      return productsOf(res);
+      const favs = this.favoriteIds();
+      const isFav = (p: Product) => p.favorite === true || favs.has(String(p.productId));
+      const products = productsOf(res);
+      return [...products.filter(isFav), ...products.filter(p => !isFav(p))];
     };
     if (barcode) {
       const byCode = await run(barcode).catch(e => { if (!query) throw e; return [] as Product[]; });

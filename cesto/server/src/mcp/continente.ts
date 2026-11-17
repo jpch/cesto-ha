@@ -45,7 +45,11 @@ export class ContinenteMcp extends EventEmitter {
     return result;
   }
 
-  searchProducts(args: { query: string; limit?: number; cursor?: string; favoritesFirst?: boolean }) { return this.read('search_products', args); }
+  /** Never with `favoritesFirst` (five results pages a search since 0.14.0); see CatalogReader. */
+  searchProducts(args: { query: string; limit?: number; cursor?: string }) {
+    const { query, limit, cursor } = args;
+    return this.read('search_products', { query, ...(limit !== undefined ? { limit } : {}), ...(cursor !== undefined ? { cursor } : {}) });
+  }
   getProduct(productId: string) { return this.read('get_product', { productId }); }
   getProductLabels(productIds: string[]) { return this.read('get_product_labels', { productIds }); }
   chooseProducts(decisions: unknown[]) { return this.read('choose_products', { decisions }); }

@@ -1,0 +1,207 @@
+{
+  "result": {
+    "status": "success",
+    "data": {
+      "observedAt": "2026-10-31T09:00:00.000Z",
+      "catalogView": "signed_in",
+      "products": [
+        {
+          "productId": "2000001",
+          "productSlug": "leite-uht-meio-gordo",
+          "name": "Leite UHT Meio-Gordo",
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 103
+            },
+            "per": "item"
+          },
+          "url": "https://www.continente.pt/produto/leite-uht-meio-gordo-2000001.html",
+          "secondaryPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 103
+            },
+            "per": "l"
+          },
+          "recommendedPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 129
+            },
+            "per": "item"
+          },
+          "promotions": [
+            {
+              "kind": "immediate_discount",
+              "label": "Desconto imediato 20%",
+              "previousPrice": {
+                "amount": {
+                  "currency": "EUR",
+                  "minorUnits": 129
+                },
+                "per": "item"
+              },
+              "percentOff": 20,
+              "amountOff": {
+                "currency": "EUR",
+                "minorUnits": 26
+              },
+              "bundle": null,
+              "nthUnit": null,
+              "validFrom": "2026-10-28",
+              "validTo": "2026-11-03"
+            }
+          ],
+          "packageText": "emb. 1 lt",
+          "package": {
+            "count": 1,
+            "each": null,
+            "net": {
+              "value": 1,
+              "unit": "l"
+            },
+            "drained": null,
+            "approximate": false
+          },
+          "minimumText": null,
+          "availability": "available",
+          "brand": "Marca Exemplo",
+          "category": "Mercearia",
+          "drainedPrice": null,
+          "unitPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 103
+            },
+            "per": "l",
+            "basis": "website"
+          },
+          "imageUrl": "https://www.continente.pt/dw/image/v2/BDVS_PRD/on/demandware.static/-/Sites-col-master-catalog/default/images/2000001.jpg",
+          "favorite": true
+        },
+        {
+          "productId": "2000002",
+          "productSlug": "banana",
+          "name": "Banana",
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 139
+            },
+            "per": "kg"
+          },
+          "url": "https://www.continente.pt/produto/banana-2000002.html",
+          "secondaryPrice": null,
+          "recommendedPrice": null,
+          "promotions": [],
+          "packageText": "emb. 1 kg (aprox.)",
+          "package": {
+            "count": 1,
+            "each": null,
+            "net": {
+              "value": 1,
+              "unit": "kg"
+            },
+            "drained": null,
+            "approximate": true
+          },
+          "minimumText": "mín. 0,2 kg",
+          "availability": "available",
+          "brand": "Marca Exemplo",
+          "category": "Mercearia",
+          "drainedPrice": null,
+          "unitPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 139
+            },
+            "per": "kg",
+            "basis": "website"
+          },
+          "imageUrl": "https://www.continente.pt/dw/image/v2/BDVS_PRD/on/demandware.static/-/Sites-col-master-catalog/default/images/2000002.jpg",
+          "favorite": false
+        },
+        {
+          "productId": "2000003",
+          "productSlug": "atum-em-oleo",
+          "name": "Atum em Óleo Vegetal",
+          "price": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 249
+            },
+            "per": "item"
+          },
+          "url": "https://www.continente.pt/produto/atum-em-oleo-2000003.html",
+          "secondaryPrice": null,
+          "recommendedPrice": null,
+          "promotions": [
+            {
+              "kind": "multi_buy",
+              "label": "Leve 3 pague 2",
+              "previousPrice": null,
+              "percentOff": null,
+              "amountOff": null,
+              "bundle": {
+                "quantity": 3,
+                "total": {
+                  "currency": "EUR",
+                  "minorUnits": 498
+                }
+              },
+              "nthUnit": null,
+              "validFrom": null,
+              "validTo": null
+            }
+          ],
+          "packageText": "emb. 3 x 80 gr",
+          "package": {
+            "count": 3,
+            "each": {
+              "value": 80,
+              "unit": "g"
+            },
+            "net": {
+              "value": 240,
+              "unit": "g"
+            },
+            "drained": {
+              "value": 156,
+              "unit": "g"
+            },
+            "approximate": false
+          },
+          "minimumText": null,
+          "availability": "unavailable",
+          "brand": "Marca Exemplo",
+          "category": "Mercearia",
+          "drainedPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 1596
+            },
+            "per": "kg"
+          },
+          "unitPrice": {
+            "amount": {
+              "currency": "EUR",
+              "minorUnits": 1596
+            },
+            "per": "kg",
+            "basis": "drained"
+          },
+          "imageUrl": "https://www.continente.pt/dw/image/v2/BDVS_PRD/on/demandware.static/-/Sites-col-master-catalog/default/images/2000003.jpg",
+          "favorite": false
+        }
+      ],
+      "unknownToFilter": 0,
+      "scanned": 3,
+      "returned": 3,
+      "favoritesLoaded": 1,
+      "completeness": "complete",
+      "failures": [],
+      "nextCursor": null
+    }
+  }
+}

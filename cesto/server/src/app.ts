@@ -1,3 +1,4 @@
+import { UNITS_HEADER, clientUnits, forUnits, showsAll } from './units.js';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ContinenteUnavailableError } from './mcp/client.js';
 import { sentProducts } from './sent.js';
@@ -238,6 +239,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       (deps.remoteCartLog ?? deps.accessLog)?.(remoteCartLine(req.method, path, reply.statusCode, p.kind === 'ha' ? `ha-user:${String(req.headers['x-remote-user-id'] ?? '').slice(0, 12)}` : `token#${p.id}`, reply.elapsedTime));
     }
     if (req.method !== 'GET' && reply.statusCode < 400 && /^\/api\/v1\/(lists|items)(\/|$)/.test(path) && !path.endsWith('/parse')) deps.onListChanged?.();
+  });
+
+  // Unit prices the client cannot show (per dose, for apps that send no X-Cesto-Units) are left out (units.ts).
+  app.addHook('preSerialization', async (req, _reply, payload) => {
+    if (!req.url.startsWith('/api/v1/') || !payload || typeof payload !== 'object') return payload;
+    const units = clientUnits(req.headers[UNITS_HEADER]);
+    return showsAll(units) ? payload : forUnits(payload, units);
   });
 
   app.get('/api/v1/health', async () => ({
@@ -551,7 +559,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.delete<{ Params: { id: string } }>('/api/v1/promotions/searches/:id', async (req, reply) =>
     needSearches().stop(req.params.id) ?? reply.code(404).send(apiError('not_found', 'error.search_not_found')));
 
-  const search = catalog ? new ProductSearch(catalog) : undefined;
+  const search = catalog ? new ProductSearch(catalog, () => new Set((habits?.get().favorites ?? []).map(f => String(f.productId)))) : undefined;
   const searchLimit = new RateLimiter(SEARCH_LIMIT, SEARCH_WINDOW_MS);
   app.post<{ Body: { query?: unknown; barcode?: unknown } }>('/api/v1/catalog/search', async (req, reply) => {
     if (!search) throw new ProposalError(503, 'error.mcp_unavailable');
