@@ -1,6 +1,6 @@
 /**
  * Unit prices an app can show. continentept-mcp 0.14.0+ prices detergents per dose (`per: "dose"`); Cesto apps
- * before 1.x-dose (no `X-Cesto-Units` header) only know kg and litre and would show "€/kg" for a dose.
+ * before 1.9.0 (no `X-Cesto-Units` header) only know kg and litre and would show "€/kg" for a dose.
  *
  * Apps that read other units say so with `X-Cesto-Units: kg,l,dose`. For any other client, every API response
  * is rewritten before it is sent: a unit price in a unit the client does not list becomes null, a related
@@ -40,12 +40,14 @@ const unknownUnit = (v: unknown, units: Set<string>) => { const per = unitOf(v);
 export function forUnits<T>(payload: T, units: Set<string>, depth = 0): T {
   if (depth > 40 || payload === null || typeof payload !== 'object') return payload;
   if (Array.isArray(payload)) return payload.map(x => forUnits(x, units, depth + 1)) as T;
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
-    if (UNIT_KEYS.has(k) && v && typeof v === 'object' && typeof (v as { per?: unknown }).per === 'string' && !units.has((v as { per: string }).per)) out[k] = null;
-    else if (k === 'cheaper' && Array.isArray(v)) out[k] = v.filter(x => !unknownUnit(x, units)).map(x => forUnits(x, units, depth + 1));
-    else if (k === 'basis' && unknownUnit(v, units)) out[k] = null;
-    else out[k] = forUnits(v, units, depth + 1);
-  }
-  return out as T;
+  // Only plain JSON objects are rewritten (a Date, Buffer or stream is sent as it is).
+  const proto = Object.getPrototypeOf(payload);
+  if (proto !== Object.prototype && proto !== null) return payload;
+  // Object.fromEntries defines own properties, so a "__proto__" key stays a plain key.
+  return Object.fromEntries(Object.entries(payload as Record<string, unknown>).map(([k, v]): [string, unknown] => {
+    if (UNIT_KEYS.has(k) && v && typeof v === 'object' && typeof (v as { per?: unknown }).per === 'string' && !units.has((v as { per: string }).per)) return [k, null];
+    if (k === 'cheaper' && Array.isArray(v)) return [k, v.filter(x => !unknownUnit(x, units)).map(x => forUnits(x, units, depth + 1))];
+    if (k === 'basis' && unknownUnit(v, units)) return [k, null];
+    return [k, forUnits(v, units, depth + 1)];
+  })) as T;
 }

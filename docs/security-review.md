@@ -125,3 +125,15 @@ release. Verdict: **no Critical, High or Medium findings; release allowed.**
 | 48 | Removed code | `StdioMcpTransport`, `MCP_COMMAND` and `scripts/upstream-tools.mjs` removed. The live contract check and pin live in the Continente MCP add-on; the test that compared the script's pattern with `FORBIDDEN_TOOL` (finding 27) is replaced by direct tests of `FORBIDDEN_TOOL`/`isForbidden`; the allowlist is still enforced on the HTTP transport. | None | OK |
 | 49 | Dependencies | fastify 5.12.8, vitest 5.1.0 (dev), `actions/setup-node` 7.1.0 pinned by commit SHA (verified as the `v7.1.0` tag commit). Lockfile hunks identical to Dependabot's. Dependabot ignores major `@types/node` (runtime Node.js 22). `npm audit`: 0 vulnerabilities. | None | OK |
 | 50 | Log noise | A persistent failure to delete the 1.x data is logged every 30 s. | Low | Accepted |
+
+## Cesto 2.0.4 (add-on `cesto` 2.0.4)
+
+Reviewed 2026-11-17 (PR #49, with continente-mcp-ha PR #19 and cesto-android PR #45) before release. Verdict: **no Critical, High or Medium findings; release allowed.**
+
+| # | Area | Finding | Severity | Status |
+|---|---|---|---|---|
+| 51 | Upstream calls | `favoritesFirst` is never sent (it reads up to five results pages a search since 0.14.0). Favourites from the cached `list_favorites` are added only when their name has every word of the item, at most 3 a line; no extra upstream call. Cached favourites carry the price and availability from the cache until the next refresh; the cart preview reads the real cart. | Low | Accepted |
+| 52 | Coupons and checkout | Cesto never calls `list_coupons` or `set_cart_coupons` (not allowlisted, `FORBIDDEN_TOOL`); after an unknown cart outcome it reads the cart with `get_cart`. No new tool is used. | None | OK |
+| 53 | Older apps | Without `X-Cesto-Units`, every `/api/v1/` response has unit prices outside kg and litre set to null, cheaper products compared in another unit left out and such a basis set to null, so apps before 1.9.0 never show a dose price as "/kg". The header is parsed defensively (first 200 characters, known units only). Only plain JSON objects are rewritten, and a `__proto__` key stays a plain key (no prototype pollution). | None | OK |
+| 54 | Session hand-off | Cesto no longer writes its 1.x session or password to `/share/continente-mcp/import/`. The 1.x `/data/continente` is still deleted once the Continente MCP add-on's `/health` confirms an account or a valid session. Finding 41's exposure window is gone. | None | Resolved |
+| 55 | Dependencies | `npm audit` reported two Moderate advisories in `hono` / `@hono/node-server`, which come in through `@modelcontextprotocol/sdk`'s server side. Cesto does not use that server. The lockfile was updated to hono 4.13.19 and @hono/node-server 2.1.8. `npm audit`: 0 vulnerabilities. | None | Resolved |

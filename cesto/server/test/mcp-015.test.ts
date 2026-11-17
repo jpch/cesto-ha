@@ -180,6 +180,16 @@ describe('per dose', () => {
     expect(forUnits(payload, clientUnits('kg,l,dose'))).toEqual(payload);
   });
 
+  it('forUnits leaves non-plain objects alone and keeps a "__proto__" key a plain key', () => {
+    const when = new Date(0);
+    expect(forUnits({ at: when }, clientUnits(undefined)).at).toBe(when);
+    const parsed = JSON.parse('{"__proto__":{"polluted":1},"unit_price":{"amount":1,"per":"dose"}}') as Record<string, unknown>;
+    const out = forUnits(parsed, clientUnits(undefined)) as Record<string, unknown>;
+    expect(out.unit_price).toBeNull();
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
   it('over the API: an app without X-Cesto-Units never sees per dose; one that lists dose does', async () => {
     const catalog: CatalogReader = { ...fixtureCatalog().catalog, async searchProducts() { return fx('search_products.dose'); } };
     const db = openDatabase(':memory:');
