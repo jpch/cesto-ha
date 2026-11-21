@@ -10,7 +10,6 @@ import { CartWriter, ContinenteMcp, TestModeGuard } from './mcp/continente.js';
 import { JobQueue } from './queue.js';
 import { LogLimiter, Metrics, RepeatedFailureLog, TimedTransport } from './metrics.js';
 import { CachedCatalog } from './cache.js';
-import { SessionKeepAlive } from './keepalive.js';
 import { continenteConnector } from './connectors/continente.js';
 
 const config = loadConfig();
@@ -58,6 +57,8 @@ const ha = process.env.SUPERVISOR_TOKEN
   ? new HaIntegration({
     supervisorUrl: 'http://supervisor', token: process.env.SUPERVISOR_TOKEN, language: config.language, log: m => console.log(m),
     continenteSlug: () => link.status().addon_slug,
+    // The Continente MCP add-on (1.0.6) shows its own session notification: Cesto then does not show a second one.
+    addonNotifies: () => link.status().ha_notification,
   })
   : undefined;
 let haTimer: NodeJS.Timeout | undefined;
@@ -93,19 +94,12 @@ const app = buildApp({
   sessionValid: () => mcp.sessionValid,
 });
 await app.listen({ host: '0.0.0.0', port: config.port });
-// Light read-only session check every 20-30 min with jitter; HA notifies when a sign-in is needed.
-const keepAlive = new SessionKeepAlive({
-  check: checkSession,
-  sessionValid: () => mcp.sessionValid,
-  signingIn: () => link.status().signing_in,
-  idleMs: () => metrics.idleMs(),
-  log: line => logLimiter.log(line),
-});
-keepAlive.start();
+// 2.0.5: no keep-alive here any more. The Continente MCP add-on (1.0.6, option session_keepalive) keeps the session
+// alive for every agent, counted from the last request, and never signs in.
 void pollLink();
 setInterval(() => void pollLink(), 30_000).unref();
 console.log(`[cesto] API listening on ${config.port} (test_mode=${config.testMode}, continente_mcp=${link.endpoint()?.source ?? 'not found'})`);
 
-const shutdown = async () => { keepAlive.stop(); await app.close(); await transport.close(); process.exit(0); };
+const shutdown = async () => { await app.close(); await transport.close(); process.exit(0); };
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);

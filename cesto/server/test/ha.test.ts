@@ -10,14 +10,14 @@ import { testConfig } from './helpers.js';
 const open: { t: HttpMcpTransport; fake: FakeMcp }[] = [];
 afterEach(async () => { await Promise.all(open.splice(0).map(async o => { await o.t.close(); await o.fake.close(); })); });
 
-function fakeHa(continenteSlug: string | null = 'a1b2c3d4_continente_mcp') {
+function fakeHa(continenteSlug: string | null = 'a1b2c3d4_continente_mcp', addonNotifies?: () => boolean) {
   const calls: { method: string; path: string; body: any }[] = [];
   const fetchImpl = (async (url: string, init: RequestInit) => {
     const path = url.replace('http://supervisor', '');
     calls.push({ method: init.method!, path, body: init.body ? JSON.parse(init.body as string) : undefined });
     return new Response('{}', { status: 200 });
   }) as unknown as typeof fetch;
-  const ha = new HaIntegration({ supervisorUrl: 'http://supervisor', token: 'sup-token', language: 'pt-PT', fetchImpl, continenteSlug: () => continenteSlug });
+  const ha = new HaIntegration({ supervisorUrl: 'http://supervisor', token: 'sup-token', language: 'pt-PT', fetchImpl, continenteSlug: () => continenteSlug, addonNotifies });
   return { ha, calls };
 }
 const base = { version: '0.1.0', testMode: true, queueLength: 0, pendingItems: 2, totalItems: 3, lastSync: '2026-10-30T00:00:00.000Z' };
@@ -69,6 +69,28 @@ describe('Home Assistant integration', () => {
     const en = new HaIntegration({ supervisorUrl: 'http://supervisor', token: 't', language: 'en', continenteSlug: () => 'x1_continente_mcp',
       fetchImpl: (async () => new Response('{}')) as unknown as typeof fetch });
     expect(en.pageUrl()).toBe('/hassio/ingress/x1_continente_mcp');
+  });
+
+  it('shows no second notification when the Continente MCP add-on shows its own (1.0.6)', async () => {
+    let addon = true;
+    const { ha, calls } = fakeHa('a1b2c3d4_continente_mcp', () => addon);
+    const notes = () => calls.filter(c => c.path.includes('persistent_notification')).map(c => c.path.split('/').pop());
+    // A notification of Cesto 2.0.4 left up is dismissed once; then nothing while the add-on notifies.
+    await ha.publish({ ...base, sessionValid: false });
+    await ha.publish({ ...base, sessionValid: false });
+    await ha.publish({ ...base, sessionValid: true });
+    expect(notes()).toEqual(['dismiss']);
+    // The session sensor and the page keep showing the expiry.
+    await ha.publish({ ...base, sessionValid: false });
+    expect(calls.filter(c => c.path.endsWith('binary_sensor.continente_session_valid')).pop()!.body.state).toBe('off');
+    // An older add-on (or a Continente MCP elsewhere) without a notification: Cesto notifies as before.
+    addon = false;
+    await ha.publish({ ...base, sessionValid: false });
+    expect(notes()).toEqual(['dismiss', 'create']);
+    // The add-on takes over while Cesto's notification is up: Cesto's is dismissed.
+    addon = true;
+    await ha.publish({ ...base, sessionValid: false });
+    expect(notes()).toEqual(['dismiss', 'create', 'dismiss']);
   });
 
   it('never throws when Home Assistant is unreachable', async () => {

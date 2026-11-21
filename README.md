@@ -24,6 +24,7 @@ the Continente account and session and runs the unofficial
 ## Install
 
 1. Install and set up the [Continente MCP add-on](https://github.com/jpch/continente-mcp-ha) (account and sign-in).
+   Turn on its `session_keepalive` option so the Continente session does not end after about 30 idle minutes.
 2. Home Assistant → Settings → Add-ons → Add-on store → ⋮ → Repositories → add `https://github.com/jpch/cesto-ha`,
    then install **Cesto** and start it. Home Assistant pulls a prebuilt image (`aarch64`, `amd64`).
 3. On the **Continente MCP** page, approve the token request named "Cesto" (its fingerprint matches the one on the
@@ -45,7 +46,8 @@ For use away from home see [docs/remote-access.md](docs/remote-access.md).
 2. **Preparar carrinho** in the app matches the pending items, shows promotions and a preview, and applies it as a
    job. Finish the order yourself on the Continente app or website.
 3. When the Continente session expires, Home Assistant shows a notification linking to the Continente MCP page,
-   where you sign in again.
+   where you sign in again. With Continente MCP 1.0.6 or later that notification comes from Continente MCP; Cesto
+   shows the expiry on its page and in `binary_sensor.continente_session_valid`, and never signs in itself.
 
 The Cesto page shows the version, test mode, Continente session status and queue, manages phone tokens, and exports
 or imports the household data (lists, items, purchase runs and preferences; no tokens or credentials; import only

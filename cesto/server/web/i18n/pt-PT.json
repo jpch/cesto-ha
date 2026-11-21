@@ -79,6 +79,7 @@
   "continente.token_rejected": "Rejeitado",
   "continente.fingerprint": "Impressão digital",
   "continente.approve_help": "Abra a página do Continente MCP e aprove o pedido «Cesto» com esta impressão digital.",
+  "continente.keepalive_off": "A manutenção da sessão está desligada no Continente MCP: ligue a opção «session_keepalive» nas opções do add-on para a sessão não terminar ao fim de cerca de 30 minutos sem uso.",
   "continente.open": "Abrir o Continente MCP",
   "error.moved_to_continente_mcp": "Isto passou para o add-on Continente MCP.",
   "error.continente_unavailable": "O add-on Continente MCP não está disponível."

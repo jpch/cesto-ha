@@ -137,6 +137,22 @@ describe('ContinenteLink', () => {
     await link.refresh();
     expect(seen).toEqual(['http://localhost:8100/health']);
     expect(link.status()).toMatchObject({ available: true, session_valid: false, signing_in: true, addon_slug: '75545ee1_continente_mcp', version: '1.0.0' });
+    // Before 1.0.6 the add-on says nothing about its notification or keep-alive.
+    expect(link.status()).toMatchObject({ ha_notification: false, session_keepalive: null });
+  });
+
+  it("reads the add-on's notification and keep-alive (1.0.6)", async () => {
+    const d = dirs();
+    endpoint(d.shareDir, { hostname: 'localhost', port: 8100 });
+    for (const [h, want] of [
+      [{ ha_notification: true, session_keepalive: { enabled: true, state: 'scheduled' } }, { ha_notification: true, session_keepalive: true }],
+      [{ ha_notification: true, session_keepalive: { enabled: false, state: 'off' } }, { ha_notification: true, session_keepalive: false }],
+      [{ ha_notification: 'yes', session_keepalive: 'on' }, { ha_notification: false, session_keepalive: null }],
+    ] as const) {
+      const link = new ContinenteLink({ ...d, fetch: (async () => new Response(JSON.stringify({ version: '1.0.6', ...h }))) as never });
+      await link.refresh();
+      expect(link.status()).toMatchObject(want);
+    }
   });
 });
 

@@ -79,6 +79,7 @@
   "continente.token_rejected": "Rejected",
   "continente.fingerprint": "Fingerprint",
   "continente.approve_help": "Open the Continente MCP page and approve the \"Cesto\" request with this fingerprint.",
+  "continente.keepalive_off": "The session keep-alive is off in Continente MCP: turn on its \"session_keepalive\" option so the session does not end after about 30 idle minutes.",
   "continente.open": "Open Continente MCP",
   "error.moved_to_continente_mcp": "This moved to the Continente MCP add-on.",
   "error.continente_unavailable": "The Continente MCP add-on is not available."

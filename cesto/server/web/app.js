@@ -41,6 +41,8 @@
     $('cmcp-token').textContent = c ? tr(`continente.token_${c.token}`) : '';
     $('cmcp-fingerprint').textContent = c ? c.fingerprint : '';
     $('cmcp-approve').hidden = !c || c.token !== 'pending_approval';
+    // 2.0.5: the keep-alive lives in the Continente MCP add-on; say so when it reports it off.
+    $('cmcp-keepalive').hidden = !(c && c.available && c.session_keepalive === false);
     const link = $('cmcp-open');
     link.hidden = !(c && c.addon_slug);
     if (c && c.addon_slug) link.href = `/hassio/ingress/${encodeURIComponent(c.addon_slug)}`;

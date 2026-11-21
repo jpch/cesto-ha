@@ -35,6 +35,10 @@ export interface ContinenteHealth {
   allow_checkout?: boolean;
   queue_length?: number;
   addon_slug?: string | null;
+  /** 1.0.6: the add-on shows the session-expired notification in Home Assistant itself. */
+  ha_notification?: boolean;
+  /** 1.0.6: the add-on's session keep-alive (option session_keepalive). */
+  session_keepalive?: { enabled?: boolean; state?: string };
 }
 
 export type LegacyPurge = 'purged' | 'none' | 'no_confirmation';
@@ -50,6 +54,10 @@ export interface LinkStatus {
   session_valid: boolean | null;
   signing_in: boolean;
   credentials_configured: boolean | null;
+  /** The add-on shows its own session notification in Home Assistant (1.0.6 or later). */
+  ha_notification: boolean;
+  /** The add-on's keep-alive is on; null when the add-on does not say (before 1.0.6, or not reachable). */
+  session_keepalive: boolean | null;
   token: TokenState;
   /** Fingerprint of Cesto's own token, to compare with the request on the Continente MCP page. Not a secret. */
   fingerprint: string;
@@ -164,6 +172,8 @@ export class ContinenteLink {
       available: !!h, url_source: this.endpoint()?.source ?? null, addon_slug: slug, version: typeof h?.version === 'string' ? h.version : null,
       session_valid: typeof h?.session_valid === 'boolean' ? h.session_valid : null, signing_in: h?.signing_in === true,
       credentials_configured: typeof h?.credentials_configured === 'boolean' ? h.credentials_configured : null,
+      ha_notification: h?.ha_notification === true,
+      session_keepalive: typeof h?.session_keepalive?.enabled === 'boolean' ? h.session_keepalive.enabled : null,
       token: this.tokenState, fingerprint: this.fingerprint, checked_at: this.checkedAt ? new Date(this.checkedAt).toISOString() : null,
     };
   }

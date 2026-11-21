@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { JobQueue } from '../src/queue.js';
 import { LogLimiter, Metrics, RepeatedFailureLog, Ring, TimedTransport, jobLine } from '../src/metrics.js';
 import { CachedCatalog, TtlCache } from '../src/cache.js';
-import { SessionKeepAlive } from '../src/keepalive.js';
 import { MutationBlockedError, TestModeGuard } from '../src/mcp/continente.js';
 import type { McpTransport } from '../src/mcp/client.js';
 import type { CatalogReader } from '../src/catalog.js';
@@ -183,32 +182,6 @@ describe('TTL caches', () => {
   });
 });
 
-describe('SessionKeepAlive', () => {
-  const make = (over: Partial<ConstructorParameters<typeof SessionKeepAlive>[0]> = {}) => {
-    const check = vi.fn(async () => true as boolean | null);
-    return { check, k: new SessionKeepAlive({ check, sessionValid: () => true, signingIn: () => false, idleMs: () => null, ...over }) };
-  };
-  it('waits 20-30 minutes with jitter', () => {
-    expect(make({ random: () => 0 }).k.nextDelay()).toBe(20 * 60_000);
-    expect(make({ random: () => 1 }).k.nextDelay()).toBe(30 * 60_000);
-  });
-  it('checks when idle and skips when busy, signing in or already expired', async () => {
-    const a = make(); expect(await a.k.tick()).toBe(true); expect(a.check).toHaveBeenCalledOnce();
-    const b = make({ idleMs: () => 60_000 }); expect(await b.k.tick()).toBe(false);
-    const c = make({ signingIn: () => true }); expect(await c.k.tick()).toBe(false);
-    const d = make({ sessionValid: () => false }); expect(await d.k.tick()).toBe(false);
-    expect(b.check).not.toHaveBeenCalled(); expect(c.check).not.toHaveBeenCalled(); expect(d.check).not.toHaveBeenCalled();
-  });
-  it('logs when the session turns out to be expired and survives errors', async () => {
-    const log: string[] = [];
-    const k = new SessionKeepAlive({ check: async () => false, sessionValid: () => null, signingIn: () => false, idleMs: () => 31 * 60_000, log: l => log.push(l) });
-    await k.tick();
-    expect(log[0]).toMatch(/session has expired; sign in again on the Continente MCP add-on page/);
-    const e = new SessionKeepAlive({ check: async () => { throw new Error('x'); }, sessionValid: () => null, signingIn: () => false, idleMs: () => null });
-    await expect(e.tick()).resolves.toBe(true);
-  });
-});
-
 describe('GET /api/v1/admin/metrics', () => {
   const build = (metrics?: () => unknown) => buildApp({ config: testConfig(), db: openDatabase(':memory:'), version: 't', metrics });
   it('returns the snapshot through ingress for admins', async () => {
@@ -258,5 +231,14 @@ describe('RepeatedFailureLog (2.0.3)', () => {
     expect(lines).toHaveLength(4);
     l.failed('EACCES');
     expect(lines.at(-1)).toBe('[continente] removing the old Continente data failed: EACCES');
+  });
+});
+
+describe('no keep-alive in Cesto (2.0.5)', () => {
+  it('leaves the keep-alive to the Continente MCP add-on: no timer module and no periodic cart check at start', async () => {
+    const { existsSync, readFileSync } = await import('node:fs');
+    expect(existsSync(new URL('../src/keepalive.ts', import.meta.url))).toBe(false);
+    const index = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+    expect(index).not.toMatch(/KeepAlive|keepalive\.js/);
   });
 });

@@ -9,6 +9,8 @@ export interface HaOptions {
   log?: (msg: string) => void;
   /** Supervisor slug of the Continente MCP add-on (from its /health), where the sign-in happens; null if unknown. */
   continenteSlug?: () => string | null;
+  /** True when the Continente MCP add-on shows its own session-expired notification (1.0.6): no second one here. */
+  addonNotifies?: () => boolean;
 }
 
 /** Same shape the Continente link accepts (`<repository hash>_<name>`). */
@@ -42,7 +44,8 @@ export class HaIntegration {
   private readonly fetch: typeof fetch;
   private readonly t: Record<string, string>;
   private notified = false;
-  private lastSession: boolean | null | undefined;
+  /** A notification of Cesto 2.0.4 or older may still be up when the add-on takes over: dismissed once. */
+  private handedOver = false;
 
   constructor(private readonly o: HaOptions) {
     this.fetch = o.fetchImpl ?? fetch;
@@ -95,10 +98,18 @@ export class HaIntegration {
     await this.session(s.sessionValid);
   }
 
-  /** Notify once when the session becomes invalid; dismiss when it is valid again. */
+  /**
+   * Notify once when the session becomes invalid; dismiss when it is valid again. When the Continente MCP add-on
+   * shows its own notification, Cesto shows none (and dismisses its own, if any).
+   */
   async session(valid: boolean | null): Promise<void> {
-    if (valid === this.lastSession) return;
-    this.lastSession = valid;
+    const addon = this.o.addonNotifies?.() ?? false;
+    if (addon) {
+      if (this.notified || !this.handedOver) await this.call('POST', '/core/api/services/persistent_notification/dismiss', { notification_id: NOTIFICATION_ID });
+      this.notified = false;
+      this.handedOver = true;
+      return;
+    }
     if (valid === false && !this.notified) {
       const url = this.pageUrl();
       await this.call('POST', '/core/api/services/persistent_notification/create', {

@@ -4,10 +4,21 @@ All notable changes to this add-on are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [2.0.5] - 2026-11-21
+### Removed
+- Cesto's own session keep-alive (a `get_cart` every 20–30 minutes). It skipped a check after any recent call and then
+  waited a full period again, so the gap between requests could reach about 50 minutes, longer than Continente's
+  ~30-minute idle timeout. The Continente MCP add-on 1.0.6 now keeps the session alive for every agent: turn on its
+  `session_keepalive` option.
 ### Changed
-- Contract tests know continentept-mcp 0.16.1, which the Continente MCP add-on 1.0.5 pins. Its tools and schemas are
-  the same as 0.15.0, so Cesto itself is unchanged and needs no new release. The 0.15.0 snapshot is kept for add-ons
-  that still pin it.
+- With Continente MCP 1.0.6 or later, Home Assistant's session-expired notification comes from Continente MCP; Cesto
+  no longer shows a second one and dismisses its own if it is still up. With an older add-on, Cesto notifies as before.
+  Cesto still shows the expiry on its page and in `binary_sensor.continente_session_valid`, and never signs in.
+- Contract tests know continentept-mcp 0.16.1, which the Continente MCP add-on 1.0.5 and 1.0.6 pin. Its tools and
+  schemas are the same as 0.15.0. The 0.15.0 snapshot is kept for add-ons that still pin it.
+### Added
+- The Cesto page says when Continente MCP reports its keep-alive off.
 
 ## [2.0.4] - 2026-11-17
 ### Changed
