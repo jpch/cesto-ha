@@ -19,7 +19,8 @@ export function normaliseAddress(input: unknown): string {
   if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname || url.username || url.password || (url.pathname !== '/' && url.pathname !== '') || url.search || url.hash)
     throw new PairingError('error.invalid_address');
   // URL drops a port equal to the scheme default (http://h:80 -> port ''), so read the typed authority as well.
-  const authority = text.slice(text.indexOf('//') + 2).split(/[/?#]/, 1)[0];
+  // URL treats a backslash like '/' in http(s), so it ends the authority too.
+  const authority = text.slice(text.indexOf('//') + 2).split(/[/?#\\]/, 1)[0];
   const typedPort = /:(\d+)$/.exec(authority)?.[1];
   const port = url.port || (typedPort ? String(Number(typedPort)) : String(ADDON_PORT));
   return `${url.protocol}//${url.hostname}:${port}`;

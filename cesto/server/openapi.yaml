@@ -374,7 +374,7 @@ paths:
     post:
       summary: Create one token for a device and return it with a cesto://pair link and its QR code as SVG (HA ingress only)
       security: []
-      requestBody: { content: { application/json: { schema: { type: object, required: [name, address], properties: { name: { type: string }, address: { type: string, description: "http(s) origin on the home network" } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [name, address], properties: { name: { type: string }, address: { type: string, description: "Home-network address: http(s) origin; scheme defaults to http, port to 8099; no path, query or credentials." } } } } } }
       responses:
         "201": { description: "{id, name, kind, token, address, uri, qr_svg}; the token is shown only here" }
         "400": { description: error.invalid_address or error.invalid_token_request }

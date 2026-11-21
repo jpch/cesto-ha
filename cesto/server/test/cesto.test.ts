@@ -77,6 +77,9 @@ describe('pairing', () => {
     // A port typed on purpose is kept, even the scheme default that URL would drop.
     expect(normaliseAddress('http://homeassistant.local:80')).toBe('http://homeassistant.local:80');
     expect(normaliseAddress('https://homeassistant.local:443')).toBe('https://homeassistant.local:443');
+    // A trailing backslash (URL reads it as '/') still ends the authority, so the typed port 80 is kept.
+    expect(normaliseAddress('http://homeassistant.local:80\\')).toBe('http://homeassistant.local:80');
+    expect(() => normaliseAddress('http://homeassistant.local\\path')).toThrow();
   });
 
   it('assumes http when the scheme is missing', () => {
