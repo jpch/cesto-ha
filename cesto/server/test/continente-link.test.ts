@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { Server as McpServer } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { ContinenteLink, fingerprintOf } from '../src/continente-link.js';
+import { ADDON_NOTIFICATION_GRACE_MS, ContinenteLink, fingerprintOf } from '../src/continente-link.js';
 import { ContinenteUnavailableError, HttpMcpTransport } from '../src/mcp/client.js';
 
 const dirs = () => {
@@ -139,6 +139,28 @@ describe('ContinenteLink', () => {
     expect(link.status()).toMatchObject({ available: true, session_valid: false, signing_in: true, addon_slug: '75545ee1_continente_mcp', version: '1.0.0' });
     // Before 1.0.6 the add-on says nothing about its notification or keep-alive.
     expect(link.status()).toMatchObject({ ha_notification: false, session_keepalive: null });
+  });
+
+  it("keeps the add-on's last ha_notification through a short outage, not a long one; an explicit false counts at once", async () => {
+    const d = dirs();
+    endpoint(d.shareDir, { hostname: 'localhost', port: 8100 });
+    let now = 1_000_000;
+    let answer: unknown = { ha_notification: true };
+    const link = new ContinenteLink({ ...d, now: () => now, fetch: (async () => {
+      if (answer === null) throw new TypeError('fetch failed');
+      return new Response(JSON.stringify(answer));
+    }) as never });
+    await link.refresh();
+    expect(link.status().ha_notification).toBe(true);
+    answer = null;                                   // the add-on restarts
+    now += 60_000; await link.refresh();
+    expect(link.status()).toMatchObject({ available: false, ha_notification: true });
+    now += ADDON_NOTIFICATION_GRACE_MS; await link.refresh();
+    expect(link.status().ha_notification).toBe(false); // gone too long: Cesto notifies itself
+    answer = { ha_notification: true }; await link.refresh();
+    expect(link.status().ha_notification).toBe(true);
+    answer = { ha_notification: false }; await link.refresh();
+    expect(link.status().ha_notification).toBe(false); // the add-on's HA calls fail: Cesto notifies itself
   });
 
   it("reads the add-on's notification and keep-alive (1.0.6)", async () => {

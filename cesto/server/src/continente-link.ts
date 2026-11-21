@@ -64,6 +64,8 @@ export interface LinkStatus {
   checked_at: string | null;
 }
 
+/** How long the add-on's last `ha_notification: true` is trusted while its health does not answer. */
+export const ADDON_NOTIFICATION_GRACE_MS = 15 * 60_000;
 const TOKEN = /^cmcp_[A-Za-z0-9_-]{43}$/;
 const SLUG = /^[a-z0-9]+_[a-z0-9_]+$/;
 /** Only a Supervisor add-on host named `<repository hash>-continente-mcp` (or the local dev host). */
@@ -78,6 +80,11 @@ export class ContinenteLink {
   private readonly fromOption: boolean;
   private health: ContinenteHealth | null = null;
   private checkedAt: number | null = null;
+  /**
+   * The add-on's last reported `ha_notification` and when it was reported. Kept through a short add-on outage
+   * (restart, update), so Cesto does not show a second notification meanwhile; an explicit `false` counts at once.
+   */
+  private addonNotifies: { value: boolean; at: number } | null = null;
   private tokenState: TokenState;
 
   constructor(private readonly o: LinkOptions) {
@@ -141,6 +148,12 @@ export class ContinenteLink {
     } catch (e) { this.o.log?.(`[continente] token request failed: ${(e as Error).message}`); }
   }
 
+  /** Whether the add-on shows the session notification: its last report, for up to 15 minutes without a health answer. */
+  private haNotification(): boolean {
+    const n = this.addonNotifies;
+    return !!n && n.value && this.now() - n.at < ADDON_NOTIFICATION_GRACE_MS;
+  }
+
   /** Called by the transport: 2xx means the token works, 401 means it is not (or no longer) approved. */
   noteAuth(ok: boolean): void {
     if (this.fromOption) return;
@@ -161,7 +174,10 @@ export class ContinenteLink {
       const res = await (this.o.fetch ?? fetch)(new URL('health', ep.url.replace(/[^/]*$/, '')), { signal: AbortSignal.timeout(5000) });
       this.health = res.ok ? (await res.json()) as ContinenteHealth : null;
     } catch { this.health = null; }
-    if (this.health) this.requestToken();
+    if (this.health) {
+      this.addonNotifies = { value: this.health.ha_notification === true, at: this.now() };
+      this.requestToken();
+    }
     return this.health;
   }
 
@@ -172,7 +188,7 @@ export class ContinenteLink {
       available: !!h, url_source: this.endpoint()?.source ?? null, addon_slug: slug, version: typeof h?.version === 'string' ? h.version : null,
       session_valid: typeof h?.session_valid === 'boolean' ? h.session_valid : null, signing_in: h?.signing_in === true,
       credentials_configured: typeof h?.credentials_configured === 'boolean' ? h.credentials_configured : null,
-      ha_notification: h?.ha_notification === true,
+      ha_notification: this.haNotification(),
       session_keepalive: typeof h?.session_keepalive?.enabled === 'boolean' ? h.session_keepalive.enabled : null,
       token: this.tokenState, fingerprint: this.fingerprint, checked_at: this.checkedAt ? new Date(this.checkedAt).toISOString() : null,
     };

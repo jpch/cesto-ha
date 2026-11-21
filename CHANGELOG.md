@@ -13,7 +13,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `session_keepalive` option.
 ### Changed
 - With Continente MCP 1.0.6 or later, Home Assistant's session-expired notification comes from Continente MCP; Cesto
-  no longer shows a second one and dismisses its own if it is still up. With an older add-on, Cesto notifies as before.
+  no longer shows a second one and dismisses its own if it is still up. With an older add-on, or when Continente MCP
+  reports that its notification does not work (`ha_notification: false`), Cesto notifies as before. The add-on's last
+  report is kept for up to 15 minutes while it does not answer (e.g. during its restart), so no duplicate appears.
   Cesto still shows the expiry on its page and in `binary_sensor.continente_session_valid`, and never signs in.
 - Contract tests know continentept-mcp 0.16.1, which the Continente MCP add-on 1.0.5 and 1.0.6 pin. Its tools and
   schemas are the same as 0.15.0. The 0.15.0 snapshot is kept for add-ons that still pin it.
