@@ -64,7 +64,25 @@ describe('preferred supermarket per item', () => {
 describe('pairing', () => {
   it('accepts only a bare http(s) origin', () => {
     expect(normaliseAddress('http://192.0.2.10:8099/')).toBe('http://192.0.2.10:8099');
-    for (const bad of ['ftp://x', 'http://u:p@h', 'http://h/path', 'http://h?x=1', 'nope', 42]) expect(() => normaliseAddress(bad)).toThrow();
+    expect(normaliseAddress(' https://homeassistant.local:9443 ')).toBe('https://homeassistant.local:9443');
+    for (const bad of ['ftp://x', 'http://u:p@h', 'u:p@h', 'http://h/path', 'h/path', 'http://h?x=1', 'http://h#x', 'javascript:alert(1)', 'foo bar', '', 'http://', 42])
+      expect(() => normaliseAddress(bad)).toThrow();
+  });
+
+  it('defaults to the add-on port 8099, never port 80', () => {
+    expect(normaliseAddress('http://192.0.2.10')).toBe('http://192.0.2.10:8099');
+    expect(normaliseAddress('http://homeassistant.local/')).toBe('http://homeassistant.local:8099');
+    expect(normaliseAddress('https://homeassistant.local')).toBe('https://homeassistant.local:8099');
+    expect(normaliseAddress('http://[2001:db8::1]')).toBe('http://[2001:db8::1]:8099');
+    // A port typed on purpose is kept, even the scheme default that URL would drop.
+    expect(normaliseAddress('http://homeassistant.local:80')).toBe('http://homeassistant.local:80');
+    expect(normaliseAddress('https://homeassistant.local:443')).toBe('https://homeassistant.local:443');
+  });
+
+  it('assumes http when the scheme is missing', () => {
+    expect(normaliseAddress('192.0.2.10')).toBe('http://192.0.2.10:8099');
+    expect(normaliseAddress('homeassistant.local:8099')).toBe('http://homeassistant.local:8099');
+    expect(normaliseAddress('HTTP://homeassistant.local')).toBe('http://homeassistant.local:8099');
   });
 
   it('creates a device token with a QR code that works on the LAN and can be revoked', async () => {
@@ -77,6 +95,9 @@ describe('pairing', () => {
     expect(body.qr_svg).toMatch(/^<svg/);
     expect(res.headers['cache-control']).toBe('no-store');
     expect((await app.inject({ method: 'POST', url: '/api/v1/admin/pair', payload: { name: 'x', address: 'http://h/p' } })).json().error.message_key).toBe('error.invalid_address');
+    const bare = (await app.inject({ method: 'POST', url: '/api/v1/admin/pair', payload: { name: 'Tablet', address: 'homeassistant.local' } })).json();
+    expect(bare.address).toBe('http://homeassistant.local:8099');
+    expect(bare.uri).toContain(`address=${encodeURIComponent('http://homeassistant.local:8099')}&`);
     asLan(app);
     expect((await app.inject({ url: '/api/v1/me', headers: { authorization: `Bearer ${body.token}` } })).json()).toMatchObject({ name: 'Telemóvel', kind: 'phone' });
     // The pairing route is admin-only (ingress), never on the LAN port.

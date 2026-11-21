@@ -35,7 +35,7 @@ the Continente account and session and runs the unofficial
 ## Connect a phone
 
 1. Open the Cesto page (sidebar → Cesto) → **Ligar um telemóvel**, enter a device name and check the home network
-   address (port 8099).
+   address (without a port the add-on uses 8099; without a scheme, http).
 2. Scan the QR code with the app. Each phone gets its own token, which you can revoke on the same page.
 
 The app can also find the add-on on the home network, or you can type the address and token by hand.

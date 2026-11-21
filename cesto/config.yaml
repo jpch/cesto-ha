@@ -1,5 +1,5 @@
 name: Cesto
-version: "2.0.5"
+version: "2.0.6"
 slug: cesto
 description: Self-hosted shared shopping list that prepares supermarket carts (Continente first). Never checks out or pays.
 url: https://github.com/jpch/cesto-ha

@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.6] - 2026-11-21
+### Fixed
+- Pairing: an address without a port now gets the add-on port 8099 (`http://homeassistant.local` becomes
+  `http://homeassistant.local:8099`), so the QR code no longer sends the app to port 80. A port typed on purpose,
+  including 80 or 443, is kept.
+### Changed
+- Pairing accepts an address without a scheme and assumes http (`homeassistant.local:8099`).
+
 ## [2.0.5] - 2026-11-21
 ### Removed
 - Cesto's own session keep-alive (a `get_cart` every 20–30 minutes). It skipped a check after any recent call and then
