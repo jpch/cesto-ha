@@ -4,6 +4,10 @@ All notable changes to this add-on are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+- Contract tests know continentept-mcp 0.16.1, which the Continente MCP add-on 1.0.5 pins. Its tools and schemas are
+  the same as 0.15.0, so Cesto itself is unchanged and needs no new release. The 0.15.0 snapshot is kept for add-ons
+  that still pin it.
 
 ## [2.0.4] - 2026-11-17
 ### Changed

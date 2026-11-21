@@ -28,10 +28,13 @@ describe('upstream tool snapshot', () => {
       for (const name of names.filter(n => !ALLOWED_TOOLS.includes(n))) expect(isForbidden(name), `${name} in ${snap.version}`).toBe(true);
     }
   });
+  it('0.16.1 has exactly the tools and schemas of 0.15.0 (only descriptions changed)', () => {
+    expect(snapshot.version).toBe('0.16.1');
+    expect(SNAPSHOTS.map(s => s.version)).toEqual(['0.16.1', '0.13.0', '0.15.0']);
+    expect(diff(SNAPSHOTS.find(s => s.version === '0.15.0')!.tools, snapshot.tools)).toEqual({ added: [], removed: [], changed: [] });
+  });
   it('0.15.0 adds and removes no tool compared with 0.13.0; the coupon tools stay forbidden', () => {
-    expect(snapshot.version).toBe('0.15.0');
-    expect(SNAPSHOTS.map(s => s.version)).toEqual(['0.15.0', '0.13.0']);
-    const d = diff(SNAPSHOTS.find(s => s.version === '0.13.0')!.tools, snapshot.tools);
+    const d = diff(SNAPSHOTS.find(s => s.version === '0.13.0')!.tools, SNAPSHOTS.find(s => s.version === '0.15.0')!.tools);
     expect(d.added).toEqual([]);
     expect(d.removed).toEqual([]);
     for (const name of ['list_coupons', 'set_cart_coupons']) { expect(FORBIDDEN_TOOL.test(name), name).toBe(true); expect(ALLOWED_TOOLS).not.toContain(name); }
